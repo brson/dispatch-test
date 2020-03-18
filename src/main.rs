@@ -1,10 +1,24 @@
 #![allow(unused)]
 
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate structopt;
+
 use std::env;
 use std::path::{PathBuf, Path};
 use std::fs::{self, File};
 use std::iter;
 use std::io::Write;
+use std::b_error::BResult;
+
+#[derive(Debug, StructOpt)]
+struct Config {
+    #[structopt(default_value = "cases")]
+    outdir: PathBuf,
+    num_types: usize,
+    call_depth: usize,
+}
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -23,7 +37,7 @@ fn main() {
     assert!(call_depth > 0);
 
     let config = Config {
-        outpath: PathBuf::from("cases"),
+        outdir: PathBuf::from("cases"),
         num_types,
         call_depth,
     };
@@ -32,7 +46,7 @@ fn main() {
 }
 
 struct Config {
-    outpath: PathBuf,
+    outdir: PathBuf,
     num_types: usize,
     call_depth: usize,
 }
@@ -45,9 +59,9 @@ fn generate(config: Config) {
 }
 
 fn gen_paths(config: &Config) -> (PathBuf, PathBuf) {
-    let mut static_path = config.outpath.clone();
+    let mut static_path = config.outdir.clone();
     static_path.push(format!("static-{:04}-{:04}.rs", config.num_types, config.call_depth));
-    let mut dynamic_path = config.outpath.clone();
+    let mut dynamic_path = config.outdir.clone();
     dynamic_path.push(format!("dynamic-{:04}-{:04}.rs", config.num_types, config.call_depth));
     (static_path, dynamic_path)
 }
