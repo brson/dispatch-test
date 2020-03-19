@@ -14,7 +14,7 @@ use std::io::Write;
 use anyhow::Result;
 
 #[derive(Debug, StructOpt)]
-struct Config {
+struct CaseConfig {
     #[structopt(default_value = "cases", long = "outdir")]
     outdir: PathBuf,
     num_types: usize,
@@ -22,17 +22,17 @@ struct Config {
 }
 
 fn main() -> Result<()> {
-    let config = Config::from_args();
+    let config = CaseConfig::from_args();
 
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
 
-    generate(config)?;
+    gen_one_case(config)?;
 
     Ok(())
 }
 
-fn generate(config: Config) -> Result<()> {
+fn gen_one_case(config: CaseConfig) -> Result<()> {
     let (static_path, dynamic_path) = gen_paths(&config);
 
     gen_static(&config, &static_path)?;
@@ -41,7 +41,7 @@ fn generate(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn gen_paths(config: &Config) -> (PathBuf, PathBuf) {
+fn gen_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
     let mut static_path = config.outdir.clone();
     static_path.push(format!("static-{:04}-{:04}.rs", config.num_types, config.num_calls));
     let mut dynamic_path = config.outdir.clone();
@@ -69,7 +69,7 @@ impl Io for T{num} {{ fn do_io(&self) {{ black_box(self) }} }}
 "
 }}
 
-fn gen_static(config: &Config, path: &Path) -> Result<()> {
+fn gen_static(config: &CaseConfig, path: &Path) -> Result<()> {
     assert!(path.extension().expect("") == "rs");
     let dir = path.parent().expect("directory");
     fs::create_dir_all(&dir)?;
@@ -107,7 +107,7 @@ fn gen_static(config: &Config, path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn gen_dynamic(config: &Config, path: &Path) -> Result<()> {
+fn gen_dynamic(config: &CaseConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
