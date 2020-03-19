@@ -5,6 +5,7 @@ extern crate serde_derive;
 #[macro_use]
 extern crate structopt;
 
+use std::time::{Instant, Duration};
 use std::process::{Command, ExitStatus};
 use structopt::StructOpt;
 use std::env;
@@ -31,7 +32,11 @@ enum Cmd {
     CompileOneCase {
         num_types: usize,
         num_calls: usize,
-    }
+    },
+    RunOneCase {
+        num_types: usize,
+        num_calls: usize,
+    },
 }
 
 #[derive(Debug, StructOpt)]
@@ -57,6 +62,13 @@ fn main() -> Result<()> {
                 num_types, num_calls
             };
             compile_one_case(config)?;
+        }
+        Cmd::RunOneCase { num_types, num_calls } => {
+            let config = CaseConfig {
+                outdir: options.global.outdir.clone(),
+                num_types, num_calls
+            };
+            run_one_case(config)?;
         }
     }
 
@@ -92,6 +104,20 @@ fn compile_one_case(config: CaseConfig) -> Result<()> {
 
     run_rustc(&static_src_path, &static_bin_path)?;
     run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
+
+    Ok(())
+}
+
+fn run_one_case(config: CaseConfig) -> Result<()> {
+    assert!(config.num_types > 0);
+    assert!(config.num_calls > 0);
+
+    let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
+    let static_time = run_case(&static_bin_path)?;
+    let dynamic_time = run_case(&dynamic_bin_path)?;
+
+    println!("static: {:?}", static_time);
+    println!("dynamic: {:?}", dynamic_time);
 
     Ok(())
 }
@@ -213,4 +239,19 @@ fn run_rustc(src: &Path, bin: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn run_case(bin: &Path) -> Result<Duration> {
+    let start = Instant::now();
+
+    let status = Command::new(bin)
+        .status()?;
+
+    if !status.success() {
+        bail!("running case failed");
+    }
+
+    let end = Instant::now();
+
+    Ok(end - start)
 }
