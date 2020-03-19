@@ -14,6 +14,44 @@ use std::io::Write;
 use anyhow::Result;
 
 #[derive(Debug, StructOpt)]
+struct Options {
+    #[structopt(subcommand)]
+    cmd: Command,
+    #[structopt(flatten)]
+    global: GlobalOptions,
+}
+
+#[derive(Debug, StructOpt)]
+enum Command {
+    GenOneCase {
+        num_types: usize,
+        num_calls: usize,
+    },
+}
+
+#[derive(Debug, StructOpt)]
+struct GlobalOptions {
+    #[structopt(default_value = "cases", long = "outdir")]
+    outdir: PathBuf,
+}
+
+fn main() -> Result<()> {
+    let options = Options::from_args();
+
+    match options.cmd {
+        Command::GenOneCase { num_types, num_calls } => {
+            let config = CaseConfig {
+                outdir: options.global.outdir.clone(),
+                num_types, num_calls
+            };
+            gen_one_case(config)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, StructOpt)]
 struct CaseConfig {
     #[structopt(default_value = "cases", long = "outdir")]
     outdir: PathBuf,
@@ -21,18 +59,10 @@ struct CaseConfig {
     num_calls: usize,
 }
 
-fn main() -> Result<()> {
-    let config = CaseConfig::from_args();
-
+fn gen_one_case(config: CaseConfig) -> Result<()> {
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
 
-    gen_one_case(config)?;
-
-    Ok(())
-}
-
-fn gen_one_case(config: CaseConfig) -> Result<()> {
     let (static_path, dynamic_path) = gen_paths(&config);
 
     gen_static(&config, &static_path)?;
