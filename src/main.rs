@@ -198,13 +198,20 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
     for type_num in 0..config.num_types {
         writeln!(file, "    let v{num} = &T{num}::default();",
                  num = type_num)?;
+    }
+    writeln!(file)?;
+
+    writeln!(file, "    for _ in 0..1_000_000 {{")?;
+
+    for type_num in 0..config.num_types {
         for _call_num in 0..config.num_calls {
-            writeln!(file, "    do_io(v{num});",
+            writeln!(file, "        do_io(v{num});",
                      num = type_num)?;
         }
         writeln!(file)?;
     }
-    
+
+    writeln!(file, "    }}")?;
     writeln!(file, "}}")?;
 
     file.flush()?;
@@ -242,6 +249,9 @@ fn run_rustc(src: &Path, bin: &Path) -> Result<()> {
 }
 
 fn run_case(bin: &Path) -> Result<Duration> {
+    let _warmup = Command::new(bin)
+        .status()?;
+
     let start = Instant::now();
 
     let status = Command::new(bin)
