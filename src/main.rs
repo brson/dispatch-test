@@ -56,8 +56,16 @@ extern crate test;
 use test::black_box;
 
 trait Io { fn do_io(&self); }
+";
 
+static FN_STATIC: &'static str = "
 fn do_io<T: Io>(v: Io) {
+    v.do_io();
+}
+";
+
+static FN_DYNAMIC: &'static str = "
+fn do_io(v: &dyn Io) {
     v.do_io();
 }
 ";
@@ -70,6 +78,14 @@ impl Io for T{num} {{ fn do_io(&self) {{ black_box(self) }} }}
 }}
 
 fn gen_static(config: &CaseConfig, path: &Path) -> Result<()> {
+    gen_case(config, path, FN_STATIC)
+}
+
+fn gen_dynamic(config: &CaseConfig, path: &Path) -> Result<()> {
+    gen_case(config, path, FN_DYNAMIC)
+}
+
+fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
     assert!(path.extension().expect("") == "rs");
     let dir = path.parent().expect("directory");
     fs::create_dir_all(&dir)?;
@@ -79,6 +95,7 @@ fn gen_static(config: &CaseConfig, path: &Path) -> Result<()> {
              config.num_types, config.num_calls)?;
     writeln!(file)?;
     writeln!(file, "{}", HEADER)?;
+    writeln!(file, "{}", fn_def)?;
 
     for num in 0..config.num_types {
         let types = gen_type(num, config.num_types);
@@ -104,10 +121,6 @@ fn gen_static(config: &CaseConfig, path: &Path) -> Result<()> {
     file.flush()?;
     drop(file);
 
-    Ok(())
-}
-
-fn gen_dynamic(config: &CaseConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
