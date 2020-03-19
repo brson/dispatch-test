@@ -18,14 +18,14 @@ struct Config {
     #[structopt(default_value = "cases", long = "outdir")]
     outdir: PathBuf,
     num_types: usize,
-    call_depth: usize,
+    num_calls: usize,
 }
 
 fn main() -> Result<()> {
     let config = Config::from_args();
 
     assert!(config.num_types > 0);
-    assert!(config.call_depth > 0);
+    assert!(config.num_calls > 0);
 
     generate(config)?;
 
@@ -43,9 +43,9 @@ fn generate(config: Config) -> Result<()> {
 
 fn gen_paths(config: &Config) -> (PathBuf, PathBuf) {
     let mut static_path = config.outdir.clone();
-    static_path.push(format!("static-{:04}-{:04}.rs", config.num_types, config.call_depth));
+    static_path.push(format!("static-{:04}-{:04}.rs", config.num_types, config.num_calls));
     let mut dynamic_path = config.outdir.clone();
-    dynamic_path.push(format!("dynamic-{:04}-{:04}.rs", config.num_types, config.call_depth));
+    dynamic_path.push(format!("dynamic-{:04}-{:04}.rs", config.num_types, config.num_calls));
     (static_path, dynamic_path)
 }
 
@@ -56,10 +56,14 @@ extern crate test;
 use test::black_box;
 
 trait Io { fn do_io(&self); }
+
+fn do_io<T: Io>(v: Io) {
+    v.do_io();
+}
 ";
 
 macro_rules! type_template{ () => { "
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct T{num}({types});
 impl Io for T{num} {{ fn do_io(&self) {{ black_box(self) }} }}
 "
@@ -70,16 +74,32 @@ fn gen_static(config: &Config, path: &Path) -> Result<()> {
     let dir = path.parent().expect("directory");
     fs::create_dir_all(&dir)?;
     let mut file = File::create(path)?;
-    writeln!(file, "// types = {}, depth = {}",
-             config.num_types, config.call_depth)?;
+
+    writeln!(file, "// types = {}, calls = {}",
+             config.num_types, config.num_calls)?;
     writeln!(file)?;
     writeln!(file, "{}", HEADER)?;
 
     for num in 0..config.num_types {
-        let types = "u8, ".repeat(num);
+        let types = gen_type(num, config.num_types);
         writeln!(file, type_template!(),
                  num = num, types = types)?;
     }
+
+    writeln!(file)?;
+    writeln!(file, "fn main() {{")?;
+
+    for type_num in 0..config.num_types {
+        writeln!(file, "    let v{num} = &T{num}::default();",
+                 num = type_num)?;
+        for _call_num in 0..config.num_calls {
+            writeln!(file, "    do_io(v{num});",
+                     num = type_num)?;
+        }
+        writeln!(file)?;
+    }
+    
+    writeln!(file, "}}")?;
 
     file.flush()?;
     drop(file);
@@ -88,5 +108,19 @@ fn gen_static(config: &Config, path: &Path) -> Result<()> {
 }
 
 fn gen_dynamic(config: &Config, path: &Path) -> Result<()> {
-    panic!()
+    Ok(())
+}
+
+fn gen_type(num: usize, num_types: usize) -> String {
+    let mut buf = String::new();
+    buf.push_str("[");
+    for i in 0..num_types {
+        if i == num {
+            buf.push_str("u8, ");
+        } else {
+            buf.push_str("u16, ");
+        }
+    }
+    buf.push_str("]");
+    buf
 }
