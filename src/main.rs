@@ -27,6 +27,10 @@ enum Command {
         num_types: usize,
         num_calls: usize,
     },
+    CompileOneCase {
+        num_types: usize,
+        num_calls: usize,
+    }
 }
 
 #[derive(Debug, StructOpt)]
@@ -45,6 +49,13 @@ fn main() -> Result<()> {
                 num_types, num_calls
             };
             gen_one_case(config)?;
+        }
+        Command::CompileOneCase { num_types, num_calls } => {
+            let config = CaseConfig {
+                outdir: options.global.outdir.clone(),
+                num_types, num_calls
+            };
+            compile_one_case(config)?;
         }
     }
 
@@ -69,6 +80,13 @@ fn gen_one_case(config: CaseConfig) -> Result<()> {
     gen_dynamic(&config, &dynamic_path)?;
 
     Ok(())
+}
+
+fn compile_one_case(config: CaseConfig) -> Result<()> {
+    assert!(config.num_types > 0);
+    assert!(config.num_calls > 0);
+
+    panic!()
 }
 
 fn gen_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
