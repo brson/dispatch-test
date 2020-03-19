@@ -5,24 +5,25 @@ extern crate serde_derive;
 #[macro_use]
 extern crate structopt;
 
+use std::process::{Command, ExitStatus};
 use structopt::StructOpt;
 use std::env;
 use std::path::{PathBuf, Path};
 use std::fs::{self, File};
 use std::iter;
 use std::io::Write;
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 #[derive(Debug, StructOpt)]
 struct Options {
     #[structopt(subcommand)]
-    cmd: Command,
+    cmd: Cmd,
     #[structopt(flatten)]
     global: GlobalOptions,
 }
 
 #[derive(Debug, StructOpt)]
-enum Command {
+enum Cmd {
     GenOneCase {
         num_types: usize,
         num_calls: usize,
@@ -43,14 +44,14 @@ fn main() -> Result<()> {
     let options = Options::from_args();
 
     match options.cmd {
-        Command::GenOneCase { num_types, num_calls } => {
+        Cmd::GenOneCase { num_types, num_calls } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_calls
             };
             gen_one_case(config)?;
         }
-        Command::CompileOneCase { num_types, num_calls } => {
+        Cmd::CompileOneCase { num_types, num_calls } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_calls
@@ -74,7 +75,7 @@ fn gen_one_case(config: CaseConfig) -> Result<()> {
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
 
-    let (static_path, dynamic_path) = gen_paths(&config);
+    let (static_path, dynamic_path) = gen_src_paths(&config);
 
     gen_static(&config, &static_path)?;
     gen_dynamic(&config, &dynamic_path)?;
@@ -86,14 +87,28 @@ fn compile_one_case(config: CaseConfig) -> Result<()> {
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
 
-    panic!()
+    let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
+    let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
+
+    run_rustc(&static_src_path, &static_bin_path)?;
+    run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
+
+    Ok(())
 }
 
-fn gen_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
+fn gen_src_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
     let mut static_path = config.outdir.clone();
     static_path.push(format!("static-{:04}-{:04}.rs", config.num_types, config.num_calls));
     let mut dynamic_path = config.outdir.clone();
     dynamic_path.push(format!("dynamic-{:04}-{:04}.rs", config.num_types, config.num_calls));
+    (static_path, dynamic_path)
+}
+
+fn gen_bin_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
+    let mut static_path = config.outdir.clone();
+    static_path.push(format!("static-{:04}-{:04}.bin", config.num_types, config.num_calls));
+    let mut dynamic_path = config.outdir.clone();
+    dynamic_path.push(format!("dynamic-{:04}-{:04}.bin", config.num_types, config.num_calls));
     (static_path, dynamic_path)
 }
 
@@ -107,7 +122,7 @@ trait Io { fn do_io(&self); }
 ";
 
 static FN_STATIC: &'static str = "
-fn do_io<T: Io>(v: Io) {
+fn do_io<T: Io>(v: &T) {
     v.do_io();
 }
 ";
@@ -121,7 +136,7 @@ fn do_io(v: &dyn Io) {
 macro_rules! type_template{ () => { "
 #[derive(Debug, Default)]
 struct T{num}({types});
-impl Io for T{num} {{ fn do_io(&self) {{ black_box(self) }} }}
+impl Io for T{num} {{ fn do_io(&self) {{ black_box(self); }} }}
 "
 }}
 
@@ -174,7 +189,7 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
 
 fn gen_type(num: usize, num_types: usize) -> String {
     let mut buf = String::new();
-    buf.push_str("[");
+    buf.push_str("(");
     for i in 0..num_types {
         if i == num {
             buf.push_str("u8, ");
@@ -182,6 +197,20 @@ fn gen_type(num: usize, num_types: usize) -> String {
             buf.push_str("u16, ");
         }
     }
-    buf.push_str("]");
+    buf.push_str(")");
     buf
+}
+
+fn run_rustc(src: &Path, bin: &Path) -> Result<()> {
+    let status = Command::new("rustc")
+        .arg(src)
+        .arg("-o")
+        .arg(bin)
+        .status()?;
+
+    if !status.success() {
+        bail!("rustc failed");
+    }
+
+    Ok(())
 }
