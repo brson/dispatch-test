@@ -186,6 +186,7 @@ fn run_one_case(config: CaseConfig) -> Result<()> {
     let static_time = run_case(&static_bin_path)?;
     let dynamic_time = run_case(&dynamic_bin_path)?;
 
+    println!("case: {} types / {} calls", config.num_types, config.num_calls);
     println!("static: {:?}", static_time);
     println!("dynamic: {:?}", dynamic_time);
 
@@ -261,6 +262,8 @@ fn gen_dynamic(config: &CaseConfig, path: &Path) -> Result<()> {
     gen_case(config, path, FN_DYNAMIC)
 }
 
+const TEST_LOOPS: usize = 100_000;
+
 fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
     assert!(path.extension().expect("") == "rs");
     let dir = path.parent().expect("directory");
@@ -288,7 +291,7 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
     }
     writeln!(file)?;
 
-    writeln!(file, "    for _ in 0..1_000_000 {{")?;
+    writeln!(file, "    for _ in 0..{} {{", TEST_LOOPS)?;
 
     for type_num in 0..config.num_types {
         for _call_num in 0..config.num_calls {
