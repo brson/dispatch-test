@@ -373,9 +373,9 @@ fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
 
     writeln!(file, "    for _ in 0..{} {{", TEST_LOOPS)?;
 
-    for _call_num in 0..config.num_calls {
-        for fn_num in 0..config.num_fns {
-            for type_num in 0..config.num_types {
+    for fn_num in 0..config.num_fns {
+        for type_num in 0..config.num_types {
+            for _call_num in 0..config.num_calls {
                 writeln!(file, "        do_io_f{fn_num}(V{type_num});",
                          fn_num = fn_num,
                          type_num = type_num)?;
