@@ -363,7 +363,7 @@ fn gen_type(num: u32, num_types: u32) -> String {
     let mut buf = String::new();
     buf.push_str("(");
     buf.push_str(&format!("[u8; {}], ", num));
-    buf.push_str("u16,");
+    buf.push_str("u16, ");
     buf.push_str(&format!("[u8; {}], ", num_types - num));
     buf.push_str(")");
     buf
@@ -373,7 +373,7 @@ fn gen_ctor(num: u32, num_types: u32) -> String {
     let mut buf = String::new();
     buf.push_str("(");
     buf.push_str(&format!("[0_u8; {}], ", num));
-    buf.push_str("0_u16,");
+    buf.push_str("0_u16, ");
     buf.push_str(&format!("[0_u8; {}], ", num_types - num));
     buf.push_str(")");
     buf
