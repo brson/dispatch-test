@@ -44,19 +44,25 @@ enum Cmd {
         num_types: u32,
         num_fns: u32,
         num_calls: u32,
-        step: u32,
+        step_types: u32,
+        step_fns: u32,
+        step_calls: u32,
     },
     CompileAllCases {
         num_types: u32,
         num_fns: u32,
         num_calls: u32,
-        step: u32,
+        step_types: u32,
+        step_fns: u32,
+        step_calls: u32,
     },
     RunAllCases {
         num_types: u32,
         num_fns: u32,
         num_calls: u32,
-        step: u32,
+        step_types: u32,
+        step_fns: u32,
+        step_calls: u32,
     },
 }
 
@@ -91,39 +97,53 @@ fn main() -> Result<()> {
             };
             run_one_case(config)?;
         }
-        Cmd::GenAllCases { num_types, num_fns, num_calls, step } => {
-            let config = CaseConfig {
+        Cmd::GenAllCases { num_types, num_fns, num_calls,
+                           step_types, step_fns, step_calls, } => {
+            let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls
+                num_types, num_fns, num_calls,
+                step_types, step_fns, step_calls,
             };
-            gen_all_cases(config, step)?;
+            gen_all_cases(config)?;
         }
-        Cmd::CompileAllCases { num_types, num_fns, num_calls, step } => {
-            let config = CaseConfig {
+        Cmd::CompileAllCases { num_types, num_fns, num_calls,
+                               step_types, step_fns, step_calls, } => {
+            let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls
+                num_types, num_fns, num_calls,
+                step_types, step_fns, step_calls,
             };
-            compile_all_cases(config, step)?;
+            compile_all_cases(config)?;
         }
-        Cmd::RunAllCases { num_types, num_fns, num_calls, step } => {
-            let config = CaseConfig {
+        Cmd::RunAllCases { num_types, num_fns, num_calls,
+                           step_types, step_fns, step_calls, } => {
+            let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls
+                num_types, num_fns, num_calls,
+                step_types, step_fns, step_calls,
             };
-            run_all_cases(config, step)?;
+            run_all_cases(config)?;
         }
     }
 
     Ok(())
 }
 
-#[derive(Debug, StructOpt)]
 struct CaseConfig {
-    #[structopt(default_value = "cases", long = "outdir")]
     outdir: PathBuf,
     num_types: u32,
     num_fns: u32,
     num_calls: u32,
+}
+
+struct MultiCaseConfig {
+    outdir: PathBuf,
+    num_types: u32,
+    num_fns: u32,
+    num_calls: u32,
+    step_types: u32,
+    step_fns: u32,
+    step_calls: u32,
 }
 
 fn verify_case(config: &CaseConfig) {
@@ -152,17 +172,36 @@ fn gen_one_case(config: CaseConfig) -> Result<()> {
     Ok(())
 }
 
-fn gen_all_cases(config: CaseConfig, step: u32) -> Result<()> {
-    assert!(step > 0);
+fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
+
+    let type_range = if config.step_types > 0 {
+        (1..=config.num_types).step_by(config.step_types as usize)
+    } else {
+        (config.num_types..=config.num_types).step_by(1)
+    };
+    let fn_range = if config.step_fns > 0 {
+        (1..=config.num_fns).step_by(config.step_fns as usize)
+    } else {
+        (config.num_fns..=config.num_fns).step_by(1)
+    };
+    let call_range = if config.step_calls > 0 {
+        (1..=config.num_calls).step_by(config.step_calls as usize)
+    } else {
+        (config.num_calls..=config.num_calls).step_by(1)
+    };
     
-    for type_num in (1..=config.num_types).step_by(step as usize) {
-        let config = CaseConfig {
-            outdir: config.outdir.clone(),
-            num_types: type_num,
-            num_fns: config.num_fns,
-            num_calls: config.num_calls,
-        };
-        gen_one_case(config)?;
+    for type_num in type_range {
+        for fn_num in fn_range.clone() {
+            for call_num in call_range.clone() {
+                let config = CaseConfig {
+                    outdir: config.outdir.clone(),
+                    num_types: type_num,
+                    num_fns: fn_num,
+                    num_calls: call_num,
+                };
+                gen_one_case(config)?;
+            }
+        }
     }
 
     Ok(())
@@ -184,10 +223,8 @@ fn compile_one_case(config: CaseConfig) -> Result<()> {
     Ok(())
 }
 
-fn compile_all_cases(config: CaseConfig, step: u32) -> Result<()> {
-    assert!(step > 0);
-    
-    for type_num in (1..=config.num_types).step_by(step as usize) {
+fn compile_all_cases(config: MultiCaseConfig) -> Result<()> {
+    for type_num in (1..=config.num_types).step_by(config.step_types as usize) {
         let config = CaseConfig {
             outdir: config.outdir.clone(),
             num_types: type_num,
@@ -216,10 +253,8 @@ fn run_one_case(config: CaseConfig) -> Result<()> {
     Ok(())
 }
 
-fn run_all_cases(config: CaseConfig, step: u32) -> Result<()> {
-    assert!(step > 0);
-    
-    for type_num in (1..=config.num_types).step_by(step as usize) {
+fn run_all_cases(config: MultiCaseConfig) -> Result<()> {
+    for type_num in (1..=config.num_types).step_by(config.step_types as usize) {
         let config = CaseConfig {
             outdir: config.outdir.clone(),
             num_types: type_num,
