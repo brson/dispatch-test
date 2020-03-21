@@ -123,6 +123,8 @@ fn gen_one_case(config: CaseConfig) -> Result<()> {
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
 
+    println!("generating case: {} types / {} calls", config.num_types, config.num_calls);
+
     let (static_path, dynamic_path) = gen_src_paths(&config);
 
     gen_static(&config, &static_path)?;
@@ -151,6 +153,8 @@ fn gen_all_cases(config: CaseConfig, step: u32) -> Result<()> {
 fn compile_one_case(config: CaseConfig) -> Result<()> {
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
+
+    println!("compiling case: {} types / {} calls", config.num_types, config.num_calls);
 
     let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
     let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
@@ -182,11 +186,12 @@ fn run_one_case(config: CaseConfig) -> Result<()> {
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
 
+    println!("running case: {} types / {} calls", config.num_types, config.num_calls);
+
     let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
     let static_time = run_case(&static_bin_path)?;
     let dynamic_time = run_case(&dynamic_bin_path)?;
 
-    println!("case: {} types / {} calls", config.num_types, config.num_calls);
     println!("static: {:?}", static_time);
     println!("dynamic: {:?}", dynamic_time);
 
