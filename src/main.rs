@@ -301,11 +301,12 @@ trait Io { fn do_io_m(&self); }
 
 macro_rules! type_template { () => { "
 struct T{num}({types});
-impl Io for T{num} {{ fn do_io_m(&self) {{ black_box(self); }} }}
+impl Io for T{num} {{ #[inline(never)] fn do_io_m(&self) {{ black_box(self); }} }}
 "
 }}
 
 macro_rules! fn_static_template { () => { "
+#[inline(never)]
 fn do_io_f{num}<T: Io>(v: &T) {{
     v.do_io_m();
     black_box(&{num});
@@ -314,6 +315,7 @@ fn do_io_f{num}<T: Io>(v: &T) {{
 }}
 
 macro_rules! fn_dynamic_template { () => { "
+#[inline(never)]
 fn do_io_f{num}(v: &dyn Io) {{
     v.do_io_m();
     black_box(&{num});
@@ -420,6 +422,7 @@ fn run_rustc(src: &Path, bin: &Path) -> Result<Duration> {
         .arg(src)
         .arg("-o")
         .arg(bin)
+        .arg("-Copt-level=3")
         .status()?;
 
     if !status.success() {
