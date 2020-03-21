@@ -332,7 +332,7 @@ fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
     writeln!(file, "fn main() {{")?;
 
     for type_num in 0..config.num_types {
-        writeln!(file, "    let v{num} = &T{num}({ctor});",
+        writeln!(file, "    static V{num}: &T{num} = &T{num}({ctor});",
                  num = type_num, ctor = gen_ctor(type_num, config.num_types))?;
     }
     writeln!(file)?;
@@ -342,7 +342,7 @@ fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
     for type_num in 0..config.num_types {
         for _call_num in 0..config.num_calls {
             for fn_num in 0..config.num_fns {
-                writeln!(file, "        do_io{fn_num}(v{type_num});",
+                writeln!(file, "        do_io{fn_num}(V{type_num});",
                          fn_num = fn_num,
                          type_num = type_num)?;
             }
