@@ -214,17 +214,17 @@ fn ranges(config: &MultiCaseConfig) ->
      impl Iterator<Item = u32> + Clone)
 {
     let type_range = if config.step_types > 0 {
-        (1..=config.num_types).step_by(config.step_types as usize)
+        (1..=config.num_types + 1).step_by(config.step_types as usize)
     } else {
         (config.num_types..=config.num_types).step_by(1)
     };
     let fn_range = if config.step_fns > 0 {
-        (1..=config.num_fns).step_by(config.step_fns as usize)
+        (1..=config.num_fns + 1).step_by(config.step_fns as usize)
     } else {
         (config.num_fns..=config.num_fns).step_by(1)
     };
     let call_range = if config.step_calls > 0 {
-        (1..=config.num_calls).step_by(config.step_calls as usize)
+        (1..=config.num_calls + 1).step_by(config.step_calls as usize)
     } else {
         (config.num_calls..=config.num_calls).step_by(1)
     };
@@ -299,6 +299,12 @@ use test::black_box;
 trait Io { fn do_io_m(&self); }
 ";
 
+macro_rules! type_template { () => { "
+struct T{num}({types});
+impl Io for T{num} {{ fn do_io_m(&self) {{ black_box(self); }} }}
+"
+}}
+
 macro_rules! fn_static_template { () => { "
 fn do_io_f{num}<T: Io>(v: &T) {{
     v.do_io_m();
@@ -312,12 +318,6 @@ fn do_io_f{num}(v: &dyn Io) {{
     v.do_io_m();
     black_box(&{num});
 }}
-"
-}}
-
-macro_rules! type_template { () => { "
-struct T{num}({types});
-impl Io for T{num} {{ fn do_io_m(&self) {{ black_box(self); }} }}
 "
 }}
 
@@ -352,14 +352,14 @@ fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
     writeln!(file)?;
     writeln!(file, "{}", HEADER)?;
 
-    for fn_num in 0..config.num_fns {
-        write_fn(&mut file, fn_num)?;
-    }
-
     for type_num in 0..config.num_types {
         let types = gen_type(type_num, config.num_types);
         writeln!(file, type_template!(),
                  num = type_num, types = types)?;
+    }
+
+    for fn_num in 0..config.num_fns {
+        write_fn(&mut file, fn_num)?;
     }
 
     writeln!(file)?;
@@ -373,9 +373,9 @@ fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
 
     writeln!(file, "    for _ in 0..{} {{", TEST_LOOPS)?;
 
-    for type_num in 0..config.num_types {
-        for _call_num in 0..config.num_calls {
-            for fn_num in 0..config.num_fns {
+    for _call_num in 0..config.num_calls {
+        for fn_num in 0..config.num_fns {
+            for type_num in 0..config.num_types {
                 writeln!(file, "        do_io_f{fn_num}(V{type_num});",
                          fn_num = fn_num,
                          type_num = type_num)?;
