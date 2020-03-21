@@ -296,20 +296,20 @@ extern crate test;
 
 use test::black_box;
 
-trait Io { fn do_io(&self); }
+trait Io { fn do_io_m(&self); }
 ";
 
 macro_rules! fn_static_template { () => { "
-fn do_io{num}<T: Io>(v: &T) {{
-    v.do_io();
+fn do_io_f{num}<T: Io>(v: &T) {{
+    v.do_io_m();
     black_box(&{num});
 }}
 "
 }}
 
 macro_rules! fn_dynamic_template { () => { "
-fn do_io{num}(v: &dyn Io) {{
-    v.do_io();
+fn do_io_f{num}(v: &dyn Io) {{
+    v.do_io_m();
     black_box(&{num});
 }}
 "
@@ -317,7 +317,7 @@ fn do_io{num}(v: &dyn Io) {{
 
 macro_rules! type_template { () => { "
 struct T{num}({types});
-impl Io for T{num} {{ fn do_io(&self) {{ black_box(self); }} }}
+impl Io for T{num} {{ fn do_io_m(&self) {{ black_box(self); }} }}
 "
 }}
 
@@ -376,7 +376,7 @@ fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
     for type_num in 0..config.num_types {
         for _call_num in 0..config.num_calls {
             for fn_num in 0..config.num_fns {
-                writeln!(file, "        do_io{fn_num}(V{type_num});",
+                writeln!(file, "        do_io_f{fn_num}(V{type_num});",
                          fn_num = fn_num,
                          type_num = type_num)?;
             }
