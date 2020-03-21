@@ -172,6 +172,36 @@ fn gen_one_case(config: CaseConfig) -> Result<()> {
     Ok(())
 }
 
+fn compile_one_case(config: CaseConfig) -> Result<()> {
+    verify_case(&config);
+    prereport("compiling", &config);
+
+    let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
+    let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
+
+    let static_time = run_rustc(&static_src_path, &static_bin_path)?;
+    let dynamic_time = run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
+
+    println!("static: {:?}", static_time);
+    println!("dynamic: {:?}", dynamic_time);
+
+    Ok(())
+}
+
+fn run_one_case(config: CaseConfig) -> Result<()> {
+    verify_case(&config);
+    prereport("running", &config);
+
+    let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
+    let static_time = run_case(&static_bin_path)?;
+    let dynamic_time = run_case(&dynamic_bin_path)?;
+
+    println!("static: {:?}", static_time);
+    println!("dynamic: {:?}", dynamic_time);
+
+    Ok(())
+}
+
 fn ranges(config: &MultiCaseConfig) ->
     (impl Iterator<Item = u32> + Clone,
      impl Iterator<Item = u32> + Clone,
@@ -196,7 +226,9 @@ fn ranges(config: &MultiCaseConfig) ->
     (type_range, fn_range, call_range)
 }
 
-fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
+type CaseTest = fn(config: CaseConfig) -> Result<()>;
+
+fn run_all_for(config: MultiCaseConfig, test: CaseTest) -> Result<()> {
     let (type_range, fn_range, call_range) = ranges(&config);
     
     for type_num in type_range {
@@ -208,7 +240,7 @@ fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
                     num_fns: fn_num,
                     num_calls: call_num,
                 };
-                gen_one_case(config)?;
+                test(config)?;
             }
         }
     }
@@ -216,64 +248,16 @@ fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
     Ok(())
 }
 
-fn compile_one_case(config: CaseConfig) -> Result<()> {
-    verify_case(&config);
-    prereport("compiling", &config);
-
-    let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
-    let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
-
-    let static_time = run_rustc(&static_src_path, &static_bin_path)?;
-    let dynamic_time = run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
-
-    println!("static: {:?}", static_time);
-    println!("dynamic: {:?}", dynamic_time);
-
-    Ok(())
+fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
+    run_all_for(config, gen_one_case)
 }
 
 fn compile_all_cases(config: MultiCaseConfig) -> Result<()> {
-    for type_num in (1..=config.num_types).step_by(config.step_types as usize) {
-        let config = CaseConfig {
-            outdir: config.outdir.clone(),
-            num_types: type_num,
-            num_fns: config.num_fns,
-            num_calls: config.num_calls,
-        };
-        compile_one_case(config)?;
-    }
-
-    Ok(())
-}
-
-fn run_one_case(config: CaseConfig) -> Result<()> {
-    verify_case(&config);
-    prereport("running", &config);
-
-    println!("running case: {} types / {} calls", config.num_types, config.num_calls);
-
-    let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
-    let static_time = run_case(&static_bin_path)?;
-    let dynamic_time = run_case(&dynamic_bin_path)?;
-
-    println!("static: {:?}", static_time);
-    println!("dynamic: {:?}", dynamic_time);
-
-    Ok(())
+    run_all_for(config, compile_one_case)
 }
 
 fn run_all_cases(config: MultiCaseConfig) -> Result<()> {
-    for type_num in (1..=config.num_types).step_by(config.step_types as usize) {
-        let config = CaseConfig {
-            outdir: config.outdir.clone(),
-            num_types: type_num,
-            num_fns: config.num_fns,
-            num_calls: config.num_calls,
-        };
-        run_one_case(config)?;
-    }
-
-    Ok(())
+    run_all_for(config, run_one_case)
 }
 
 fn gen_src_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
