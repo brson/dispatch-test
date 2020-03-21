@@ -182,8 +182,14 @@ fn compile_one_case(config: CaseConfig) -> Result<()> {
     let static_time = run_rustc(&static_src_path, &static_bin_path)?;
     let dynamic_time = run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
 
-    println!("static: {:?}", static_time);
-    println!("dynamic: {:?}", dynamic_time);
+    println!("static-compile-time : {:?}", static_time);
+    println!("dynamic-compile-time: {:?}", dynamic_time);
+
+    let static_size = fs::metadata(static_bin_path)?.len();
+    let dynamic_size = fs::metadata(dynamic_bin_path)?.len();
+
+    println!("static-bin-size     : {}", static_size);
+    println!("dynamic-bin-size    : {}", dynamic_size);
 
     Ok(())
 }
@@ -196,8 +202,8 @@ fn run_one_case(config: CaseConfig) -> Result<()> {
     let static_time = run_case(&static_bin_path)?;
     let dynamic_time = run_case(&dynamic_bin_path)?;
 
-    println!("static: {:?}", static_time);
-    println!("dynamic: {:?}", dynamic_time);
+    println!("static-run-time : {:?}", static_time);
+    println!("dynamic-run-time: {:?}", dynamic_time);
 
     Ok(())
 }
