@@ -253,7 +253,6 @@ fn do_io(v: &dyn Io) {
 ";
 
 macro_rules! type_template{ () => { "
-#[derive(Debug, Default)]
 struct T{num}({types});
 impl Io for T{num} {{ fn do_io(&self) {{ black_box(self); }} }}
 "
@@ -291,8 +290,8 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
     writeln!(file, "fn main() {{")?;
 
     for type_num in 0..config.num_types {
-        writeln!(file, "    let v{num} = &T{num}::default();",
-                 num = type_num)?;
+        writeln!(file, "    let v{num} = &T{num}({ctor});",
+                 num = type_num, ctor = gen_ctor(type_num, config.num_types))?;
     }
     writeln!(file)?;
 
@@ -323,6 +322,20 @@ fn gen_type(num: u32, num_types: u32) -> String {
             buf.push_str("u8, ");
         } else {
             buf.push_str("u16, ");
+        }
+    }
+    buf.push_str(")");
+    buf
+}
+
+fn gen_ctor(num: u32, num_types: u32) -> String {
+    let mut buf = String::new();
+    buf.push_str("(");
+    for i in 0..num_types {
+        if i == num {
+            buf.push_str("0_u8, ");
+        } else {
+            buf.push_str("0_u16, ");
         }
     }
     buf.push_str(")");
