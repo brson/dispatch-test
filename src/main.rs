@@ -37,6 +37,21 @@ enum Cmd {
         num_types: u32,
         num_calls: u32,
     },
+    GenAllCases {
+        num_types: u32,
+        num_calls: u32,
+        step: u32,
+    },
+    CompileAllCases {
+        num_types: u32,
+        num_calls: u32,
+        step: u32,
+    },
+    RunAllCases {
+        num_types: u32,
+        num_calls: u32,
+        step: u32,
+    },
 }
 
 #[derive(Debug, StructOpt)]
@@ -70,6 +85,27 @@ fn main() -> Result<()> {
             };
             run_one_case(config)?;
         }
+        Cmd::GenAllCases { num_types, num_calls, step } => {
+            let config = CaseConfig {
+                outdir: options.global.outdir.clone(),
+                num_types, num_calls
+            };
+            gen_all_cases(config, step)?;
+        }
+        Cmd::CompileAllCases { num_types, num_calls, step } => {
+            let config = CaseConfig {
+                outdir: options.global.outdir.clone(),
+                num_types, num_calls
+            };
+            compile_all_cases(config, step)?;
+        }
+        Cmd::RunAllCases { num_types, num_calls, step } => {
+            let config = CaseConfig {
+                outdir: options.global.outdir.clone(),
+                num_types, num_calls
+            };
+            run_all_cases(config, step)?;
+        }
     }
 
     Ok(())
@@ -95,6 +131,23 @@ fn gen_one_case(config: CaseConfig) -> Result<()> {
     Ok(())
 }
 
+fn gen_all_cases(config: CaseConfig, step: u32) -> Result<()> {
+    assert!(step > 0);
+    
+    for type_num in (1..=config.num_types).step_by(step as usize) {
+        for call_num in (1..=config.num_calls).step_by(step as usize) {
+            let config = CaseConfig {
+                outdir: config.outdir.clone(),
+                num_types: type_num,
+                num_calls: call_num,
+            };
+            gen_one_case(config)?;
+        }
+    }
+
+    Ok(())
+}
+
 fn compile_one_case(config: CaseConfig) -> Result<()> {
     assert!(config.num_types > 0);
     assert!(config.num_calls > 0);
@@ -104,6 +157,23 @@ fn compile_one_case(config: CaseConfig) -> Result<()> {
 
     run_rustc(&static_src_path, &static_bin_path)?;
     run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
+
+    Ok(())
+}
+
+fn compile_all_cases(config: CaseConfig, step: u32) -> Result<()> {
+    assert!(step > 0);
+    
+    for type_num in (1..=config.num_types).step_by(step as usize) {
+        for call_num in (1..=config.num_calls).step_by(step as usize) {
+            let config = CaseConfig {
+                outdir: config.outdir.clone(),
+                num_types: type_num,
+                num_calls: call_num,
+            };
+            compile_one_case(config)?;
+        }
+    }
 
     Ok(())
 }
@@ -118,6 +188,23 @@ fn run_one_case(config: CaseConfig) -> Result<()> {
 
     println!("static: {:?}", static_time);
     println!("dynamic: {:?}", dynamic_time);
+
+    Ok(())
+}
+
+fn run_all_cases(config: CaseConfig, step: u32) -> Result<()> {
+    assert!(step > 0);
+    
+    for type_num in (1..=config.num_types).step_by(step as usize) {
+        for call_num in (1..=config.num_calls).step_by(step as usize) {
+            let config = CaseConfig {
+                outdir: config.outdir.clone(),
+                num_types: type_num,
+                num_calls: call_num,
+            };
+            run_one_case(config)?;
+        }
+    }
 
     Ok(())
 }
