@@ -157,8 +157,11 @@ fn compile_one_case(config: CaseConfig) -> Result<()> {
     let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
     let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
 
-    run_rustc(&static_src_path, &static_bin_path)?;
-    run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
+    let static_time = run_rustc(&static_src_path, &static_bin_path)?;
+    let dynamic_time = run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
+
+    println!("static: {:?}", static_time);
+    println!("dynamic: {:?}", dynamic_time);
 
     Ok(())
 }
@@ -336,7 +339,9 @@ fn gen_ctor(num: u32, num_types: u32) -> String {
     buf
 }
 
-fn run_rustc(src: &Path, bin: &Path) -> Result<()> {
+fn run_rustc(src: &Path, bin: &Path) -> Result<Duration> {
+    let start = Instant::now();
+
     let status = Command::new("rustc")
         .arg(src)
         .arg("-o")
@@ -347,13 +352,12 @@ fn run_rustc(src: &Path, bin: &Path) -> Result<()> {
         bail!("rustc failed");
     }
 
-    Ok(())
+    let end = Instant::now();
+
+    Ok(end - start)
 }
 
 fn run_case(bin: &Path) -> Result<Duration> {
-    let _warmup = Command::new(bin)
-        .status()?;
-
     let start = Instant::now();
 
     let status = Command::new(bin)
