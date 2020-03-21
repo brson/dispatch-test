@@ -314,13 +314,9 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
 fn gen_type(num: u32, num_types: u32) -> String {
     let mut buf = String::new();
     buf.push_str("(");
-    for i in 0..num_types {
-        if i == num {
-            buf.push_str("u8, ");
-        } else {
-            buf.push_str("u16, ");
-        }
-    }
+    buf.push_str(&format!("[u8; {}], ", num));
+    buf.push_str("u16,");
+    buf.push_str(&format!("[u8; {}], ", num_types - num));
     buf.push_str(")");
     buf
 }
@@ -328,13 +324,9 @@ fn gen_type(num: u32, num_types: u32) -> String {
 fn gen_ctor(num: u32, num_types: u32) -> String {
     let mut buf = String::new();
     buf.push_str("(");
-    for i in 0..num_types {
-        if i == num {
-            buf.push_str("0_u8, ");
-        } else {
-            buf.push_str("0_u16, ");
-        }
-    }
+    buf.push_str(&format!("[0_u8; {}], ", num));
+    buf.push_str("0_u16,");
+    buf.push_str(&format!("[0_u8; {}], ", num_types - num));
     buf.push_str(")");
     buf
 }
