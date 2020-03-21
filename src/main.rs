@@ -29,6 +29,8 @@ enum Cmd {
         num_types: u32,
         num_fns: u32,
         num_calls: u32,
+        #[structopt(long = "inline")]
+        inline: bool,
     },
     CompileOneCase {
         num_types: u32,
@@ -47,6 +49,8 @@ enum Cmd {
         step_types: u32,
         step_fns: u32,
         step_calls: u32,
+        #[structopt(long)]
+        inline: bool,
     },
     CompileAllCases {
         num_types: u32,
@@ -76,12 +80,13 @@ fn main() -> Result<()> {
     let options = Options::from_args();
 
     match options.cmd {
-        Cmd::GenOneCase { num_types, num_fns, num_calls } => {
+        Cmd::GenOneCase { num_types, num_fns, num_calls,
+                          inline } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls
             };
-            gen_one_case(config)?;
+            gen_one_case(config, inline)?;
         }
         Cmd::CompileOneCase { num_types, num_fns, num_calls } => {
             let config = CaseConfig {
@@ -98,13 +103,14 @@ fn main() -> Result<()> {
             run_one_case(config)?;
         }
         Cmd::GenAllCases { num_types, num_fns, num_calls,
-                           step_types, step_fns, step_calls, } => {
+                           step_types, step_fns, step_calls,
+                           inline } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls,
                 step_types, step_fns, step_calls,
             };
-            gen_all_cases(config)?;
+            gen_all_cases(config, inline)?;
         }
         Cmd::CompileAllCases { num_types, num_fns, num_calls,
                                step_types, step_fns, step_calls, } => {
@@ -160,14 +166,14 @@ fn prereport(action: &str, config: &CaseConfig) {
              config.num_calls);
 }
 
-fn gen_one_case(config: CaseConfig) -> Result<()> {
+fn gen_one_case(config: CaseConfig, inline: bool) -> Result<()> {
     verify_case(&config);
     prereport("generating", &config);
 
     let (static_path, dynamic_path) = gen_src_paths(&config);
 
-    gen_static(&config, &static_path)?;
-    gen_dynamic(&config, &dynamic_path)?;
+    gen_static(&config, &static_path, inline)?;
+    gen_dynamic(&config, &dynamic_path, inline)?;
 
     Ok(())
 }
@@ -232,9 +238,7 @@ fn ranges(config: &MultiCaseConfig) ->
     (type_range, fn_range, call_range)
 }
 
-type CaseTest = fn(config: CaseConfig) -> Result<()>;
-
-fn run_all_for(config: MultiCaseConfig, test: CaseTest) -> Result<()> {
+fn run_all_for(config: MultiCaseConfig, test: impl Fn(CaseConfig) -> Result<()>) -> Result<()> {
     let (type_range, fn_range, call_range) = ranges(&config);
     
     for type_num in type_range {
@@ -254,16 +258,16 @@ fn run_all_for(config: MultiCaseConfig, test: CaseTest) -> Result<()> {
     Ok(())
 }
 
-fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
-    run_all_for(config, gen_one_case)
+fn gen_all_cases(config: MultiCaseConfig, inline: bool) -> Result<()> {
+    run_all_for(config, |c| gen_one_case(c, inline))
 }
 
 fn compile_all_cases(config: MultiCaseConfig) -> Result<()> {
-    run_all_for(config, compile_one_case)
+    run_all_for(config, &compile_one_case)
 }
 
 fn run_all_cases(config: MultiCaseConfig) -> Result<()> {
-    run_all_for(config, run_one_case)
+    run_all_for(config, &run_one_case)
 }
 
 fn gen_src_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
@@ -301,12 +305,12 @@ trait Io { fn do_io_m(&self); }
 
 macro_rules! type_template { () => { "
 struct T{num}({types});
-impl Io for T{num} {{ #[inline(never)] fn do_io_m(&self) {{ black_box(self); }} }}
+impl Io for T{num} {{ {inlining} fn do_io_m(&self) {{ black_box(self); }} }}
 "
 }}
 
 macro_rules! fn_static_template { () => { "
-#[inline(never)]
+{inlining}
 fn do_io_f{num}<T: Io>(v: &T) {{
     v.do_io_m();
     black_box(&{num});
@@ -315,7 +319,7 @@ fn do_io_f{num}<T: Io>(v: &T) {{
 }}
 
 macro_rules! fn_dynamic_template { () => { "
-#[inline(never)]
+{inlining}
 fn do_io_f{num}(v: &dyn Io) {{
     v.do_io_m();
     black_box(&{num});
@@ -323,27 +327,28 @@ fn do_io_f{num}(v: &dyn Io) {{
 "
 }}
 
-fn gen_static(config: &CaseConfig, path: &Path) -> Result<()> {
-    gen_case(config, path, write_fn_static)
+fn gen_static(config: &CaseConfig, path: &Path, inline: bool) -> Result<()> {
+    gen_case(config, path, write_fn_static, inline)
 }
 
-fn gen_dynamic(config: &CaseConfig, path: &Path) -> Result<()> {
-    gen_case(config, path, write_fn_dynamic)
+fn gen_dynamic(config: &CaseConfig, path: &Path, inline: bool) -> Result<()> {
+    gen_case(config, path, write_fn_dynamic, inline)
 }
 
 const TEST_LOOPS: usize = 100_000;
 
-type WriteFn = fn(f: &mut dyn Write, num: u32) -> Result<()>;
+type WriteFn = fn(f: &mut dyn Write, num: u32, inline_str: &str) -> Result<()>;
 
-fn write_fn_static(f: &mut dyn Write, num: u32) -> Result<()> {
-    Ok(writeln!(f, fn_static_template!(), num = num)?)
+fn write_fn_static(f: &mut dyn Write, num: u32, inline_str: &str) -> Result<()> {
+    Ok(writeln!(f, fn_static_template!(), num = num, inlining = inline_str)?)
 }
 
-fn write_fn_dynamic(f: &mut dyn Write, num: u32) -> Result<()> {
-    Ok(writeln!(f, fn_dynamic_template!(), num = num)?)
+fn write_fn_dynamic(f: &mut dyn Write, num: u32, inline_str: &str) -> Result<()> {
+    Ok(writeln!(f, fn_dynamic_template!(), num = num, inlining = inline_str)?)
 }
 
-fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
+fn gen_case(config: &CaseConfig, path: &Path,
+            write_fn: WriteFn, inline: bool) -> Result<()> {
     assert!(path.extension().expect("") == "rs");
     let dir = path.parent().expect("directory");
     fs::create_dir_all(&dir)?;
@@ -354,14 +359,21 @@ fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
     writeln!(file)?;
     writeln!(file, "{}", HEADER)?;
 
+    let inline_str = if inline {
+        ""
+    } else {
+        "#[inline(never)]"
+    };
+
     for type_num in 0..config.num_types {
         let types = gen_type(type_num, config.num_types);
         writeln!(file, type_template!(),
-                 num = type_num, types = types)?;
+                 num = type_num, types = types,
+                 inlining = inline_str)?;
     }
 
     for fn_num in 0..config.num_fns {
-        write_fn(&mut file, fn_num)?;
+        write_fn(&mut file, fn_num, inline_str)?;
     }
 
     writeln!(file)?;
