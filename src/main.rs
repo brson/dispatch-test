@@ -27,28 +27,34 @@ struct Options {
 enum Cmd {
     GenOneCase {
         num_types: u32,
+        num_fns: u32,
         num_calls: u32,
     },
     CompileOneCase {
         num_types: u32,
+        num_fns: u32,
         num_calls: u32,
     },
     RunOneCase {
         num_types: u32,
+        num_fns: u32,
         num_calls: u32,
     },
     GenAllCases {
         num_types: u32,
+        num_fns: u32,
         num_calls: u32,
         step: u32,
     },
     CompileAllCases {
         num_types: u32,
+        num_fns: u32,
         num_calls: u32,
         step: u32,
     },
     RunAllCases {
         num_types: u32,
+        num_fns: u32,
         num_calls: u32,
         step: u32,
     },
@@ -64,45 +70,45 @@ fn main() -> Result<()> {
     let options = Options::from_args();
 
     match options.cmd {
-        Cmd::GenOneCase { num_types, num_calls } => {
+        Cmd::GenOneCase { num_types, num_fns, num_calls } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_calls
+                num_types, num_fns, num_calls
             };
             gen_one_case(config)?;
         }
-        Cmd::CompileOneCase { num_types, num_calls } => {
+        Cmd::CompileOneCase { num_types, num_fns, num_calls } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_calls
+                num_types, num_fns, num_calls
             };
             compile_one_case(config)?;
         }
-        Cmd::RunOneCase { num_types, num_calls } => {
+        Cmd::RunOneCase { num_types, num_fns, num_calls } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_calls
+                num_types, num_fns, num_calls
             };
             run_one_case(config)?;
         }
-        Cmd::GenAllCases { num_types, num_calls, step } => {
+        Cmd::GenAllCases { num_types, num_fns, num_calls, step } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_calls
+                num_types, num_fns, num_calls
             };
             gen_all_cases(config, step)?;
         }
-        Cmd::CompileAllCases { num_types, num_calls, step } => {
+        Cmd::CompileAllCases { num_types, num_fns, num_calls, step } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_calls
+                num_types, num_fns, num_calls
             };
             compile_all_cases(config, step)?;
         }
-        Cmd::RunAllCases { num_types, num_calls, step } => {
+        Cmd::RunAllCases { num_types, num_fns, num_calls, step } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_calls
+                num_types, num_fns, num_calls
             };
             run_all_cases(config, step)?;
         }
@@ -116,14 +122,27 @@ struct CaseConfig {
     #[structopt(default_value = "cases", long = "outdir")]
     outdir: PathBuf,
     num_types: u32,
+    num_fns: u32,
     num_calls: u32,
 }
 
-fn gen_one_case(config: CaseConfig) -> Result<()> {
+fn verify_case(config: &CaseConfig) {
     assert!(config.num_types > 0);
+    assert!(config.num_fns > 0);
     assert!(config.num_calls > 0);
+}
 
-    println!("generating case: {} types / {} calls", config.num_types, config.num_calls);
+fn prereport(action: &str, config: &CaseConfig) {
+    println!("{} case: {} types / {} fns / {} calls",
+             action,
+             config.num_types,
+             config.num_fns,
+             config.num_calls);
+}
+
+fn gen_one_case(config: CaseConfig) -> Result<()> {
+    verify_case(&config);
+    prereport("generating", &config);
 
     let (static_path, dynamic_path) = gen_src_paths(&config);
 
@@ -140,6 +159,7 @@ fn gen_all_cases(config: CaseConfig, step: u32) -> Result<()> {
         let config = CaseConfig {
             outdir: config.outdir.clone(),
             num_types: type_num,
+            num_fns: config.num_fns,
             num_calls: config.num_calls,
         };
         gen_one_case(config)?;
@@ -149,10 +169,8 @@ fn gen_all_cases(config: CaseConfig, step: u32) -> Result<()> {
 }
 
 fn compile_one_case(config: CaseConfig) -> Result<()> {
-    assert!(config.num_types > 0);
-    assert!(config.num_calls > 0);
-
-    println!("compiling case: {} types / {} calls", config.num_types, config.num_calls);
+    verify_case(&config);
+    prereport("compiling", &config);
 
     let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
     let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
@@ -173,6 +191,7 @@ fn compile_all_cases(config: CaseConfig, step: u32) -> Result<()> {
         let config = CaseConfig {
             outdir: config.outdir.clone(),
             num_types: type_num,
+            num_fns: config.num_fns,
             num_calls: config.num_calls,
         };
         compile_one_case(config)?;
@@ -182,8 +201,8 @@ fn compile_all_cases(config: CaseConfig, step: u32) -> Result<()> {
 }
 
 fn run_one_case(config: CaseConfig) -> Result<()> {
-    assert!(config.num_types > 0);
-    assert!(config.num_calls > 0);
+    verify_case(&config);
+    prereport("running", &config);
 
     println!("running case: {} types / {} calls", config.num_types, config.num_calls);
 
@@ -204,6 +223,7 @@ fn run_all_cases(config: CaseConfig, step: u32) -> Result<()> {
         let config = CaseConfig {
             outdir: config.outdir.clone(),
             num_types: type_num,
+            num_fns: config.num_fns,
             num_calls: config.num_calls,
         };
         run_one_case(config)?;
@@ -214,17 +234,25 @@ fn run_all_cases(config: CaseConfig, step: u32) -> Result<()> {
 
 fn gen_src_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
     let mut static_path = config.outdir.clone();
-    static_path.push(format!("static-{:04}-{:04}.rs", config.num_types, config.num_calls));
+    static_path.push(
+        format!("static-{:04}-{:04}-{:04}.rs",
+                config.num_types, config.num_fns, config.num_calls));
     let mut dynamic_path = config.outdir.clone();
-    dynamic_path.push(format!("dynamic-{:04}-{:04}.rs", config.num_types, config.num_calls));
+    dynamic_path.push(
+        format!("dynamic-{:04}-{:04}-{:04}.rs",
+                config.num_types, config.num_fns, config.num_calls));
     (static_path, dynamic_path)
 }
 
 fn gen_bin_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
     let mut static_path = config.outdir.clone();
-    static_path.push(format!("static-{:04}-{:04}.bin", config.num_types, config.num_calls));
+    static_path.push(
+        format!("static-{:04}-{:04}-{:04}.bin",
+                config.num_types, config.num_fns, config.num_calls));
     let mut dynamic_path = config.outdir.clone();
-    dynamic_path.push(format!("dynamic-{:04}-{:04}.bin", config.num_types, config.num_calls));
+    dynamic_path.push(
+        format!("dynamic-{:04}-{:04}-{:04}.bin",
+                config.num_types, config.num_fns, config.num_calls));
     (static_path, dynamic_path)
 }
 
@@ -237,35 +265,49 @@ use test::black_box;
 trait Io { fn do_io(&self); }
 ";
 
-static FN_STATIC: &'static str = "
-fn do_io<T: Io>(v: &T) {
+macro_rules! fn_static_template { () => { "
+fn do_io{num}<T: Io>(v: &T) {{
     v.do_io();
-}
-";
+    black_box(&{num});
+}}
+"
+}}
 
-static FN_DYNAMIC: &'static str = "
-fn do_io(v: &dyn Io) {
+macro_rules! fn_dynamic_template { () => { "
+fn do_io{num}(v: &dyn Io) {{
     v.do_io();
-}
-";
+    black_box(&{num});
+}}
+"
+}}
 
-macro_rules! type_template{ () => { "
+macro_rules! type_template { () => { "
 struct T{num}({types});
 impl Io for T{num} {{ fn do_io(&self) {{ black_box(self); }} }}
 "
 }}
 
 fn gen_static(config: &CaseConfig, path: &Path) -> Result<()> {
-    gen_case(config, path, FN_STATIC)
+    gen_case(config, path, write_fn_static)
 }
 
 fn gen_dynamic(config: &CaseConfig, path: &Path) -> Result<()> {
-    gen_case(config, path, FN_DYNAMIC)
+    gen_case(config, path, write_fn_dynamic)
 }
 
 const TEST_LOOPS: usize = 100_000;
 
-fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
+type WriteFn = fn(f: &mut dyn Write, num: u32) -> Result<()>;
+
+fn write_fn_static(f: &mut dyn Write, num: u32) -> Result<()> {
+    Ok(writeln!(f, fn_static_template!(), num = num)?)
+}
+
+fn write_fn_dynamic(f: &mut dyn Write, num: u32) -> Result<()> {
+    Ok(writeln!(f, fn_dynamic_template!(), num = num)?)
+}
+
+fn gen_case(config: &CaseConfig, path: &Path, write_fn: WriteFn) -> Result<()> {
     assert!(path.extension().expect("") == "rs");
     let dir = path.parent().expect("directory");
     fs::create_dir_all(&dir)?;
@@ -275,12 +317,15 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
              config.num_types, config.num_calls)?;
     writeln!(file)?;
     writeln!(file, "{}", HEADER)?;
-    writeln!(file, "{}", fn_def)?;
 
-    for num in 0..config.num_types {
-        let types = gen_type(num, config.num_types);
+    for fn_num in 0..config.num_fns {
+        write_fn(&mut file, fn_num)?;
+    }
+
+    for type_num in 0..config.num_types {
+        let types = gen_type(type_num, config.num_types);
         writeln!(file, type_template!(),
-                 num = num, types = types)?;
+                 num = type_num, types = types)?;
     }
 
     writeln!(file)?;
@@ -296,8 +341,11 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
 
     for type_num in 0..config.num_types {
         for _call_num in 0..config.num_calls {
-            writeln!(file, "        do_io(v{num});",
-                     num = type_num)?;
+            for fn_num in 0..config.num_fns {
+                writeln!(file, "        do_io{fn_num}(v{type_num});",
+                         fn_num = fn_num,
+                         type_num = type_num)?;
+            }
         }
         writeln!(file)?;
     }
