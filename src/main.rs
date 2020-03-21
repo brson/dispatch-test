@@ -26,16 +26,16 @@ struct Options {
 #[derive(Debug, StructOpt)]
 enum Cmd {
     GenOneCase {
-        num_types: usize,
-        num_calls: usize,
+        num_types: u32,
+        num_calls: u32,
     },
     CompileOneCase {
-        num_types: usize,
-        num_calls: usize,
+        num_types: u32,
+        num_calls: u32,
     },
     RunOneCase {
-        num_types: usize,
-        num_calls: usize,
+        num_types: u32,
+        num_calls: u32,
     },
 }
 
@@ -79,8 +79,8 @@ fn main() -> Result<()> {
 struct CaseConfig {
     #[structopt(default_value = "cases", long = "outdir")]
     outdir: PathBuf,
-    num_types: usize,
-    num_calls: usize,
+    num_types: u32,
+    num_calls: u32,
 }
 
 fn gen_one_case(config: CaseConfig) -> Result<()> {
@@ -220,7 +220,7 @@ fn gen_case(config: &CaseConfig, path: &Path, fn_def: &str) -> Result<()> {
     Ok(())
 }
 
-fn gen_type(num: usize, num_types: usize) -> String {
+fn gen_type(num: u32, num_types: u32) -> String {
     let mut buf = String::new();
     buf.push_str("(");
     for i in 0..num_types {
