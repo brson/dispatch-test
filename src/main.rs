@@ -172,8 +172,11 @@ fn gen_one_case(config: CaseConfig) -> Result<()> {
     Ok(())
 }
 
-fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
-
+fn ranges(config: &MultiCaseConfig) ->
+    (impl Iterator<Item = u32> + Clone,
+     impl Iterator<Item = u32> + Clone,
+     impl Iterator<Item = u32> + Clone)
+{
     let type_range = if config.step_types > 0 {
         (1..=config.num_types).step_by(config.step_types as usize)
     } else {
@@ -189,6 +192,12 @@ fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
     } else {
         (config.num_calls..=config.num_calls).step_by(1)
     };
+
+    (type_range, fn_range, call_range)
+}
+
+fn gen_all_cases(config: MultiCaseConfig) -> Result<()> {
+    let (type_range, fn_range, call_range) = ranges(&config);
     
     for type_num in type_range {
         for fn_num in fn_range.clone() {
