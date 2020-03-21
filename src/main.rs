@@ -137,14 +137,12 @@ fn gen_all_cases(config: CaseConfig, step: u32) -> Result<()> {
     assert!(step > 0);
     
     for type_num in (1..=config.num_types).step_by(step as usize) {
-        for call_num in (1..=config.num_calls).step_by(step as usize) {
-            let config = CaseConfig {
-                outdir: config.outdir.clone(),
-                num_types: type_num,
-                num_calls: call_num,
-            };
-            gen_one_case(config)?;
-        }
+        let config = CaseConfig {
+            outdir: config.outdir.clone(),
+            num_types: type_num,
+            num_calls: config.num_calls,
+        };
+        gen_one_case(config)?;
     }
 
     Ok(())
@@ -169,14 +167,12 @@ fn compile_all_cases(config: CaseConfig, step: u32) -> Result<()> {
     assert!(step > 0);
     
     for type_num in (1..=config.num_types).step_by(step as usize) {
-        for call_num in (1..=config.num_calls).step_by(step as usize) {
-            let config = CaseConfig {
-                outdir: config.outdir.clone(),
-                num_types: type_num,
-                num_calls: call_num,
-            };
-            compile_one_case(config)?;
-        }
+        let config = CaseConfig {
+            outdir: config.outdir.clone(),
+            num_types: type_num,
+            num_calls: config.num_calls,
+        };
+        compile_one_case(config)?;
     }
 
     Ok(())
@@ -202,14 +198,12 @@ fn run_all_cases(config: CaseConfig, step: u32) -> Result<()> {
     assert!(step > 0);
     
     for type_num in (1..=config.num_types).step_by(step as usize) {
-        for call_num in (1..=config.num_calls).step_by(step as usize) {
-            let config = CaseConfig {
-                outdir: config.outdir.clone(),
-                num_types: type_num,
-                num_calls: call_num,
-            };
-            run_one_case(config)?;
-        }
+        let config = CaseConfig {
+            outdir: config.outdir.clone(),
+            num_types: type_num,
+            num_calls: config.num_calls,
+        };
+        run_one_case(config)?;
     }
 
     Ok(())
