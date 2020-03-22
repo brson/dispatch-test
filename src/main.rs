@@ -28,7 +28,6 @@ enum Cmd {
     GenOneCase {
         num_types: u32,
         num_fns: u32,
-        num_calls: u32,
         #[structopt(long)]
         no_inline: bool,
         #[structopt(long)]
@@ -39,7 +38,6 @@ enum Cmd {
     CompileOneCase {
         num_types: u32,
         num_fns: u32,
-        num_calls: u32,
         #[structopt(long)]
         asm: bool,
         #[structopt(long, default_value = "0")]
@@ -48,15 +46,12 @@ enum Cmd {
     RunOneCase {
         num_types: u32,
         num_fns: u32,
-        num_calls: u32,
     },
     GenAllCases {
         num_types: u32,
         num_fns: u32,
-        num_calls: u32,
         step_types: u32,
         step_fns: u32,
-        step_calls: u32,
         #[structopt(long)]
         no_inline: bool,
         #[structopt(long)]
@@ -67,10 +62,8 @@ enum Cmd {
     CompileAllCases {
         num_types: u32,
         num_fns: u32,
-        num_calls: u32,
         step_types: u32,
         step_fns: u32,
-        step_calls: u32,
         #[structopt(long)]
         asm: bool,
         #[structopt(long, default_value = "0")]
@@ -79,10 +72,8 @@ enum Cmd {
     RunAllCases {
         num_types: u32,
         num_fns: u32,
-        num_calls: u32,
         step_types: u32,
         step_fns: u32,
-        step_calls: u32,
     },
 }
 
@@ -96,67 +87,67 @@ fn main() -> Result<()> {
     let options = Options::from_args();
 
     match options.cmd {
-        Cmd::GenOneCase { num_types, num_fns, num_calls,
+        Cmd::GenOneCase { num_types, num_fns,
                           no_inline, no_dedup, predictable } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls
+                num_types, num_fns,
             };
             let opts = GenOpts {
                 no_inline, no_dedup, predictable
             };
             gen_one_case(config, opts)?;
         }
-        Cmd::CompileOneCase { num_types, num_fns, num_calls,
+        Cmd::CompileOneCase { num_types, num_fns,
                               asm, opt_level } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls
+                num_types, num_fns,
             };
             let opts = CompileOpts {
                 asm, opt_level
             };
             compile_one_case(config, opts)?;
         }
-        Cmd::RunOneCase { num_types, num_fns, num_calls } => {
+        Cmd::RunOneCase { num_types, num_fns } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls
+                num_types, num_fns,
             };
             run_one_case(config)?;
         }
-        Cmd::GenAllCases { num_types, num_fns, num_calls,
-                           step_types, step_fns, step_calls,
+        Cmd::GenAllCases { num_types, num_fns,
+                           step_types, step_fns,
                            no_inline, no_dedup, predictable } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls,
-                step_types, step_fns, step_calls,
+                num_types, num_fns,
+                step_types, step_fns,
             };
             let opts = GenOpts {
                 no_inline, no_dedup, predictable
             };
             gen_all_cases(config, opts)?;
         }
-        Cmd::CompileAllCases { num_types, num_fns, num_calls,
-                               step_types, step_fns, step_calls,
+        Cmd::CompileAllCases { num_types, num_fns,
+                               step_types, step_fns,
                                asm, opt_level } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls,
-                step_types, step_fns, step_calls,
+                num_types, num_fns,
+                step_types, step_fns,
             };
             let opts = CompileOpts {
                 asm, opt_level
             };
             compile_all_cases(config, opts)?;
         }
-        Cmd::RunAllCases { num_types, num_fns, num_calls,
-                           step_types, step_fns, step_calls, } => {
+        Cmd::RunAllCases { num_types, num_fns,
+                           step_types, step_fns, } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
-                num_types, num_fns, num_calls,
-                step_types, step_fns, step_calls,
+                num_types, num_fns,
+                step_types, step_fns,
             };
             run_all_cases(config)?;
         }
@@ -169,17 +160,14 @@ struct CaseConfig {
     outdir: PathBuf,
     num_types: u32,
     num_fns: u32,
-    num_calls: u32,
 }
 
 struct MultiCaseConfig {
     outdir: PathBuf,
     num_types: u32,
     num_fns: u32,
-    num_calls: u32,
     step_types: u32,
     step_fns: u32,
-    step_calls: u32,
 }
 
 #[derive(Clone)]
@@ -196,11 +184,10 @@ struct GenOpts {
 }
 
 fn prereport(action: &str, config: &CaseConfig) {
-    println!("{} case: {} types / {} fns / {} calls",
+    println!("{} case: {} types / {} fns",
              action,
              config.num_types,
-             config.num_fns,
-             config.num_calls);
+             config.num_fns);
 }
 
 fn gen_one_case(config: CaseConfig, opts: GenOpts) -> Result<()> {
@@ -267,7 +254,6 @@ fn run_one_case(config: CaseConfig) -> Result<()> {
 
 fn ranges(config: &MultiCaseConfig) ->
     (impl Iterator<Item = u32> + Clone,
-     impl Iterator<Item = u32> + Clone,
      impl Iterator<Item = u32> + Clone)
 {
     let type_range = if config.step_types > 0 {
@@ -280,29 +266,21 @@ fn ranges(config: &MultiCaseConfig) ->
     } else {
         (config.num_fns..=config.num_fns).step_by(1)
     };
-    let call_range = if config.step_calls > 0 {
-        (0..=config.num_calls).step_by(config.step_calls as usize)
-    } else {
-        (config.num_calls..=config.num_calls).step_by(1)
-    };
 
-    (type_range, fn_range, call_range)
+    (type_range, fn_range)
 }
 
 fn run_all_for(config: MultiCaseConfig, test: impl Fn(CaseConfig) -> Result<()>) -> Result<()> {
-    let (type_range, fn_range, call_range) = ranges(&config);
+    let (type_range, fn_range) = ranges(&config);
     
     for type_num in type_range {
         for fn_num in fn_range.clone() {
-            for call_num in call_range.clone() {
-                let config = CaseConfig {
-                    outdir: config.outdir.clone(),
-                    num_types: type_num,
-                    num_fns: fn_num,
-                    num_calls: call_num,
-                };
-                test(config)?;
-            }
+            let config = CaseConfig {
+                outdir: config.outdir.clone(),
+                num_types: type_num,
+                num_fns: fn_num,
+            };
+            test(config)?;
         }
     }
 
@@ -336,13 +314,13 @@ fn gen_asm_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
 fn gen_paths(config: &CaseConfig, ext: &str) -> (PathBuf, PathBuf) {
     let mut static_path = config.outdir.clone();
     static_path.push(
-        format!("static-{:04}-{:04}-{:04}.{}",
-                config.num_types, config.num_fns, config.num_calls,
+        format!("static-{:04}-{:04}.{}",
+                config.num_types, config.num_fns,
                 ext));
     let mut dynamic_path = config.outdir.clone();
     dynamic_path.push(
-        format!("dynamic-{:04}-{:04}-{:04}.{}",
-                config.num_types, config.num_fns, config.num_calls,
+        format!("dynamic-{:04}-{:04}.{}",
+                config.num_types, config.num_fns,
                 ext));
     (static_path, dynamic_path)
 }
@@ -431,11 +409,11 @@ fn gen_case(config: &CaseConfig, path: &Path,
     fs::create_dir_all(&dir)?;
     let mut file = File::create(path)?;
 
-    writeln!(file, "// types = {}, fns = {}, calls = {}",
-             config.num_types, config.num_fns, config.num_calls)?;
+    writeln!(file, "// types = {}, fns = {}",
+             config.num_types, config.num_fns)?;
     writeln!(file)?;
 
-    if config.num_types == 0 || config.num_fns == 0 || config.num_calls == 0 {
+    if config.num_types == 0 || config.num_fns == 0 {
         writeln!(file, "#![allow(unused)]")?;
     }
 
@@ -467,22 +445,18 @@ fn gen_case(config: &CaseConfig, path: &Path,
     if !opts.predictable {
         for fn_num in 0..config.num_fns {
             for type_num in 0..config.num_types {
-                for _call_num in 0..config.num_calls {
-                    writeln!(file, "        do_io_f{fn_num}(V{type_num});",
-                             fn_num = fn_num,
-                             type_num = type_num)?;
-                }
+                writeln!(file, "        do_io_f{fn_num}(V{type_num});",
+                         fn_num = fn_num,
+                         type_num = type_num)?;
             }
             writeln!(file)?;
         }
     } else {
         for type_num in 0..config.num_types {
             for fn_num in 0..config.num_fns {
-                for _call_num in 0..config.num_calls {
-                    writeln!(file, "        do_io_f{fn_num}(V{type_num});",
-                             fn_num = fn_num,
-                             type_num = type_num)?;
-                }
+                writeln!(file, "        do_io_f{fn_num}(V{type_num});",
+                         fn_num = fn_num,
+                         type_num = type_num)?;
             }
             writeln!(file)?;
         }
