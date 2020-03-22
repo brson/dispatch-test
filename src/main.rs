@@ -30,7 +30,7 @@ enum Cmd {
         num_fns: u32,
         num_calls: u32,
         #[structopt(long)]
-        inline: bool,
+        no_inline: bool,
     },
     CompileOneCase {
         num_types: u32,
@@ -54,7 +54,7 @@ enum Cmd {
         step_fns: u32,
         step_calls: u32,
         #[structopt(long)]
-        inline: bool,
+        no_inline: bool,
     },
     CompileAllCases {
         num_types: u32,
@@ -89,12 +89,15 @@ fn main() -> Result<()> {
 
     match options.cmd {
         Cmd::GenOneCase { num_types, num_fns, num_calls,
-                          inline } => {
+                          no_inline } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls
             };
-            gen_one_case(config, inline)?;
+            let opts = GenOpts {
+                no_inline,
+            };
+            gen_one_case(config, opts)?;
         }
         Cmd::CompileOneCase { num_types, num_fns, num_calls,
                               asm, opt_level } => {
@@ -116,13 +119,16 @@ fn main() -> Result<()> {
         }
         Cmd::GenAllCases { num_types, num_fns, num_calls,
                            step_types, step_fns, step_calls,
-                           inline } => {
+                           no_inline } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls,
                 step_types, step_fns, step_calls,
             };
-            gen_all_cases(config, inline)?;
+            let opts = GenOpts {
+                no_inline,
+            };
+            gen_all_cases(config, opts)?;
         }
         Cmd::CompileAllCases { num_types, num_fns, num_calls,
                                step_types, step_fns, step_calls,
@@ -174,6 +180,11 @@ struct CompileOpts {
     opt_level: u32,
 }
 
+#[derive(Clone)]
+struct GenOpts {
+    no_inline: bool,
+}
+
 fn verify_case(config: &CaseConfig) {
     assert!(config.num_types > 0);
     assert!(config.num_fns > 0);
@@ -188,14 +199,14 @@ fn prereport(action: &str, config: &CaseConfig) {
              config.num_calls);
 }
 
-fn gen_one_case(config: CaseConfig, inline: bool) -> Result<()> {
+fn gen_one_case(config: CaseConfig, opts: GenOpts) -> Result<()> {
     verify_case(&config);
     prereport("generating", &config);
 
     let (static_path, dynamic_path) = gen_src_paths(&config);
 
-    gen_static(&config, &static_path, inline)?;
-    gen_dynamic(&config, &dynamic_path, inline)?;
+    gen_static(&config, &static_path, opts.clone())?;
+    gen_dynamic(&config, &dynamic_path, opts)?;
 
     Ok(())
 }
@@ -297,8 +308,8 @@ fn run_all_for(config: MultiCaseConfig, test: impl Fn(CaseConfig) -> Result<()>)
     Ok(())
 }
 
-fn gen_all_cases(config: MultiCaseConfig, inline: bool) -> Result<()> {
-    run_all_for(config, |c| gen_one_case(c, inline))
+fn gen_all_cases(config: MultiCaseConfig, opts: GenOpts) -> Result<()> {
+    run_all_for(config, |c| gen_one_case(c, opts.clone()))
 }
 
 fn compile_all_cases(config: MultiCaseConfig, opts: CompileOpts) -> Result<()> {
@@ -369,12 +380,12 @@ fn do_io_f{num}(v: &dyn Io) {{
 "
 }}
 
-fn gen_static(config: &CaseConfig, path: &Path, inline: bool) -> Result<()> {
-    gen_case(config, path, write_fn_static, inline)
+fn gen_static(config: &CaseConfig, path: &Path, opts: GenOpts) -> Result<()> {
+    gen_case(config, path, write_fn_static, opts)
 }
 
-fn gen_dynamic(config: &CaseConfig, path: &Path, inline: bool) -> Result<()> {
-    gen_case(config, path, write_fn_dynamic, inline)
+fn gen_dynamic(config: &CaseConfig, path: &Path, opts: GenOpts) -> Result<()> {
+    gen_case(config, path, write_fn_dynamic, opts)
 }
 
 const TEST_LOOPS: usize = 100_000;
@@ -390,7 +401,7 @@ fn write_fn_dynamic(f: &mut dyn Write, num: u32, inline_str: &str) -> Result<()>
 }
 
 fn gen_case(config: &CaseConfig, path: &Path,
-            write_fn: WriteFn, inline: bool) -> Result<()> {
+            write_fn: WriteFn, opts: GenOpts) -> Result<()> {
     assert!(path.extension().expect("") == "rs");
     let dir = path.parent().expect("directory");
     fs::create_dir_all(&dir)?;
@@ -401,10 +412,10 @@ fn gen_case(config: &CaseConfig, path: &Path,
     writeln!(file)?;
     writeln!(file, "{}", HEADER)?;
 
-    let inline_str = if inline {
-        ""
-    } else {
+    let inline_str = if opts.no_inline {
         "#[inline(never)]"
+    } else {
+        ""
     };
 
     for type_num in 0..config.num_types {
