@@ -218,8 +218,8 @@ fn compile_one_case(config: CaseConfig, opts: CompileOpts) -> Result<()> {
     let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
     let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
 
-    let static_time = run_rustc_bin(&static_src_path, &static_bin_path)?;
-    let dynamic_time = run_rustc_bin(&dynamic_src_path, &dynamic_bin_path)?;
+    let static_time = run_rustc_bin(&static_src_path, &static_bin_path, &opts)?;
+    let dynamic_time = run_rustc_bin(&dynamic_src_path, &dynamic_bin_path, &opts)?;
 
     println!("static-compile-time  : {:?}", static_time);
     println!("dynamic-compile-time : {:?}", dynamic_time);
@@ -233,8 +233,8 @@ fn compile_one_case(config: CaseConfig, opts: CompileOpts) -> Result<()> {
     if opts.asm {
         let (static_asm_path, dynamic_asm_path) = gen_asm_paths(&config);
 
-        run_rustc_asm(&static_src_path, &static_asm_path)?;
-        run_rustc_asm(&dynamic_src_path, &dynamic_asm_path)?;
+        run_rustc_asm(&static_src_path, &static_asm_path, &opts)?;
+        run_rustc_asm(&dynamic_src_path, &dynamic_asm_path, &opts)?;
     }
 
     let (static_method_count, static_fn_count)
@@ -480,15 +480,15 @@ fn gen_ctor(num: u32, num_types: u32) -> String {
     buf
 }
 
-fn run_rustc_bin(src: &Path, out: &Path) -> Result<Duration> {
-    run_rustc(src, out, "link")
+fn run_rustc_bin(src: &Path, out: &Path, opts: &CompileOpts) -> Result<Duration> {
+    run_rustc(src, out, "link", opts)
 }
 
-fn run_rustc_asm(src: &Path, out: &Path) -> Result<Duration> {
-    run_rustc(src, out, "asm")
+fn run_rustc_asm(src: &Path, out: &Path, opts: &CompileOpts) -> Result<Duration> {
+    run_rustc(src, out, "asm", opts)
 }
 
-fn run_rustc(src: &Path, out: &Path, emit: &str) -> Result<Duration> {
+fn run_rustc(src: &Path, out: &Path, emit: &str, opts: &CompileOpts) -> Result<Duration> {
     let start = Instant::now();
 
     let status = Command::new("rustc")
@@ -497,7 +497,7 @@ fn run_rustc(src: &Path, out: &Path, emit: &str) -> Result<Duration> {
         .arg(emit)
         .arg("-o")
         .arg(out)
-        .arg("-Copt-level=3")
+        .arg(format!("-Copt-level={}", opts.opt_level))
         .status()?;
 
     if !status.success() {
