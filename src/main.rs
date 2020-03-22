@@ -32,6 +32,8 @@ enum Cmd {
         #[structopt(long)]
         no_inline: bool,
         #[structopt(long)]
+        no_dedup: bool,
+        #[structopt(long)]
         predictable: bool,
     },
     CompileOneCase {
@@ -57,6 +59,8 @@ enum Cmd {
         step_calls: u32,
         #[structopt(long)]
         no_inline: bool,
+        #[structopt(long)]
+        no_dedup: bool,
         #[structopt(long)]
         predictable: bool,
     },
@@ -93,13 +97,13 @@ fn main() -> Result<()> {
 
     match options.cmd {
         Cmd::GenOneCase { num_types, num_fns, num_calls,
-                          no_inline, predictable } => {
+                          no_inline, no_dedup, predictable } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls
             };
             let opts = GenOpts {
-                no_inline, predictable
+                no_inline, no_dedup, predictable
             };
             gen_one_case(config, opts)?;
         }
@@ -123,14 +127,14 @@ fn main() -> Result<()> {
         }
         Cmd::GenAllCases { num_types, num_fns, num_calls,
                            step_types, step_fns, step_calls,
-                           no_inline, predictable } => {
+                           no_inline, no_dedup, predictable } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls,
                 step_types, step_fns, step_calls,
             };
             let opts = GenOpts {
-                no_inline, predictable
+                no_inline, no_dedup, predictable
             };
             gen_all_cases(config, opts)?;
         }
@@ -187,6 +191,7 @@ struct CompileOpts {
 #[derive(Clone)]
 struct GenOpts {
     no_inline: bool,
+    no_dedup: bool,
     predictable: bool,
 }
 
@@ -357,7 +362,9 @@ impl Io for T{num} {{
     {inlining}
     fn do_io_m(&self) {{
         black_box(self);
-        black_box(&{num});
+        if {no_dedup} {{
+            black_box(&{num});
+        }}
     }}
 }}
 "
@@ -367,7 +374,9 @@ macro_rules! fn_static_template { () => { "
 {inlining}
 fn do_io_f{num}<T: Io>(v: &T) {{
     v.do_io_m();
-    black_box(&{num});
+    if {no_dedup} {{
+        black_box(&{num});
+    }}
 }}
 "
 }}
@@ -376,7 +385,9 @@ macro_rules! fn_dynamic_template { () => { "
 {inlining}
 fn do_io_f{num}(v: &dyn Io) {{
     v.do_io_m();
-    black_box(&{num});
+    if {no_dedup} {{
+        black_box(&{num});
+    }}
 }}
 "
 }}
@@ -391,14 +402,26 @@ fn gen_dynamic(config: &CaseConfig, path: &Path, opts: GenOpts) -> Result<()> {
 
 const TEST_LOOPS: usize = 100_000;
 
-type WriteFn = fn(f: &mut dyn Write, num: u32, inline_str: &str) -> Result<()>;
+type WriteFn = fn(f: &mut dyn Write, num: u32, opts: &GenOpts) -> Result<()>;
 
-fn write_fn_static(f: &mut dyn Write, num: u32, inline_str: &str) -> Result<()> {
-    Ok(writeln!(f, fn_static_template!(), num = num, inlining = inline_str)?)
+fn write_fn_static(f: &mut dyn Write, num: u32, opts: &GenOpts) -> Result<()> {
+    Ok(writeln!(f, fn_static_template!(),
+                num = num, inlining = inline_str(opts),
+                no_dedup = opts.no_dedup)?)
 }
 
-fn write_fn_dynamic(f: &mut dyn Write, num: u32, inline_str: &str) -> Result<()> {
-    Ok(writeln!(f, fn_dynamic_template!(), num = num, inlining = inline_str)?)
+fn write_fn_dynamic(f: &mut dyn Write, num: u32, opts: &GenOpts) -> Result<()> {
+    Ok(writeln!(f, fn_dynamic_template!(),
+                num = num, inlining = inline_str(opts),
+                no_dedup = opts.no_dedup)?)
+}
+
+fn inline_str(opts: &GenOpts) -> &'static str {
+    if opts.no_inline {
+        "#[inline(never)]"
+    } else {
+        ""
+    }
 }
 
 fn gen_case(config: &CaseConfig, path: &Path,
@@ -418,21 +441,16 @@ fn gen_case(config: &CaseConfig, path: &Path,
 
     writeln!(file, "{}", HEADER)?;
 
-    let inline_str = if opts.no_inline {
-        "#[inline(never)]"
-    } else {
-        ""
-    };
-
     for type_num in 0..config.num_types {
         let types = gen_type(type_num, config.num_types);
         writeln!(file, type_template!(),
                  num = type_num, types = types,
-                 inlining = inline_str)?;
+                 inlining = inline_str(&opts),
+                 no_dedup = opts.no_dedup)?;
     }
 
     for fn_num in 0..config.num_fns {
-        write_fn(&mut file, fn_num, inline_str)?;
+        write_fn(&mut file, fn_num, &opts)?;
     }
 
     writeln!(file)?;
