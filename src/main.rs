@@ -31,6 +31,8 @@ enum Cmd {
         num_calls: u32,
         #[structopt(long)]
         no_inline: bool,
+        #[structopt(long)]
+        predictable: bool,
     },
     CompileOneCase {
         num_types: u32,
@@ -55,6 +57,8 @@ enum Cmd {
         step_calls: u32,
         #[structopt(long)]
         no_inline: bool,
+        #[structopt(long)]
+        predictable: bool,
     },
     CompileAllCases {
         num_types: u32,
@@ -89,13 +93,13 @@ fn main() -> Result<()> {
 
     match options.cmd {
         Cmd::GenOneCase { num_types, num_fns, num_calls,
-                          no_inline } => {
+                          no_inline, predictable } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls
             };
             let opts = GenOpts {
-                no_inline,
+                no_inline, predictable
             };
             gen_one_case(config, opts)?;
         }
@@ -119,14 +123,14 @@ fn main() -> Result<()> {
         }
         Cmd::GenAllCases { num_types, num_fns, num_calls,
                            step_types, step_fns, step_calls,
-                           no_inline } => {
+                           no_inline, predictable } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls,
                 step_types, step_fns, step_calls,
             };
             let opts = GenOpts {
-                no_inline,
+                no_inline, predictable
             };
             gen_all_cases(config, opts)?;
         }
@@ -183,6 +187,7 @@ struct CompileOpts {
 #[derive(Clone)]
 struct GenOpts {
     no_inline: bool,
+    predictable: bool,
 }
 
 fn prereport(action: &str, config: &CaseConfig) {
@@ -441,15 +446,28 @@ fn gen_case(config: &CaseConfig, path: &Path,
 
     writeln!(file, "    for _ in 0..{} {{", TEST_LOOPS)?;
 
-    for fn_num in 0..config.num_fns {
-        for type_num in 0..config.num_types {
-            for _call_num in 0..config.num_calls {
-                writeln!(file, "        do_io_f{fn_num}(V{type_num});",
-                         fn_num = fn_num,
-                         type_num = type_num)?;
+    if !opts.predictable {
+        for fn_num in 0..config.num_fns {
+            for type_num in 0..config.num_types {
+                for _call_num in 0..config.num_calls {
+                    writeln!(file, "        do_io_f{fn_num}(V{type_num});",
+                             fn_num = fn_num,
+                             type_num = type_num)?;
+                }
             }
+            writeln!(file)?;
         }
-        writeln!(file)?;
+    } else {
+        for type_num in 0..config.num_types {
+            for fn_num in 0..config.num_fns {
+                for _call_num in 0..config.num_calls {
+                    writeln!(file, "        do_io_f{fn_num}(V{type_num});",
+                             fn_num = fn_num,
+                             type_num = type_num)?;
+                }
+            }
+            writeln!(file)?;
+        }
     }
 
     writeln!(file, "    }}")?;
