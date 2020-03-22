@@ -349,16 +349,18 @@ fn gen_paths(config: &CaseConfig, ext: &str) -> (PathBuf, PathBuf) {
 
 static HEADER: &'static str = "
 #![feature(test)]
-extern crate test;
 
-use test::black_box;
+use std::hint::black_box;
 
 trait Io { fn do_io_m(&self); }
 ";
 
 macro_rules! type_template { () => { "
 struct T{num}({types});
-impl Io for T{num} {{ {inlining} fn do_io_m(&self) {{ black_box(self); }} }}
+impl Io for T{num} {{ {inlining} fn do_io_m(&self) {{
+    black_box(self);
+    black_box(&{num});
+}} }}
 "
 }}
 
@@ -461,23 +463,11 @@ fn gen_case(config: &CaseConfig, path: &Path,
 }
 
 fn gen_type(num: u32, num_types: u32) -> String {
-    let mut buf = String::new();
-    buf.push_str("(");
-    buf.push_str(&format!("[u8; {}], ", num));
-    buf.push_str("u16, ");
-    buf.push_str(&format!("[u8; {}], ", num_types - num));
-    buf.push_str(")");
-    buf
+    "u8".to_string()
 }
 
 fn gen_ctor(num: u32, num_types: u32) -> String {
-    let mut buf = String::new();
-    buf.push_str("(");
-    buf.push_str(&format!("[0_u8; {}], ", num));
-    buf.push_str("0_u16, ");
-    buf.push_str(&format!("[0_u8; {}], ", num_types - num));
-    buf.push_str(")");
-    buf
+    "0_u8".to_string()
 }
 
 fn run_rustc_bin(src: &Path, out: &Path, opts: &CompileOpts) -> Result<Duration> {
