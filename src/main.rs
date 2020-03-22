@@ -348,10 +348,13 @@ trait Io { fn do_io_m(&self); }
 
 macro_rules! type_template { () => { "
 struct T{num}({types});
-impl Io for T{num} {{ {inlining} fn do_io_m(&self) {{
-    black_box(self);
-    black_box(&{num});
-}} }}
+impl Io for T{num} {{
+    {inlining}
+    fn do_io_m(&self) {{
+        black_box(self);
+        black_box(&{num});
+    }}
+}}
 "
 }}
 
@@ -400,8 +403,8 @@ fn gen_case(config: &CaseConfig, path: &Path,
     fs::create_dir_all(&dir)?;
     let mut file = File::create(path)?;
 
-    writeln!(file, "// types = {}, calls = {}",
-             config.num_types, config.num_calls)?;
+    writeln!(file, "// types = {}, fns = {}, calls = {}",
+             config.num_types, config.num_fns, config.num_calls)?;
     writeln!(file)?;
 
     if config.num_types == 0 || config.num_fns == 0 || config.num_calls == 0 {
