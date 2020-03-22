@@ -185,12 +185,6 @@ struct GenOpts {
     no_inline: bool,
 }
 
-fn verify_case(config: &CaseConfig) {
-    assert!(config.num_types > 0);
-    assert!(config.num_fns > 0);
-    assert!(config.num_calls > 0);
-}
-
 fn prereport(action: &str, config: &CaseConfig) {
     println!("{} case: {} types / {} fns / {} calls",
              action,
@@ -200,7 +194,6 @@ fn prereport(action: &str, config: &CaseConfig) {
 }
 
 fn gen_one_case(config: CaseConfig, opts: GenOpts) -> Result<()> {
-    verify_case(&config);
     prereport("generating", &config);
 
     let (static_path, dynamic_path) = gen_src_paths(&config);
@@ -212,7 +205,6 @@ fn gen_one_case(config: CaseConfig, opts: GenOpts) -> Result<()> {
 }
 
 fn compile_one_case(config: CaseConfig, opts: CompileOpts) -> Result<()> {
-    verify_case(&config);
     prereport("compiling", &config);
 
     let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
@@ -221,8 +213,8 @@ fn compile_one_case(config: CaseConfig, opts: CompileOpts) -> Result<()> {
     let static_time = run_rustc_bin(&static_src_path, &static_bin_path, &opts)?;
     let dynamic_time = run_rustc_bin(&dynamic_src_path, &dynamic_bin_path, &opts)?;
 
-    println!("static-compile-time  : {:?}", static_time);
-    println!("dynamic-compile-time : {:?}", dynamic_time);
+    println!("static-compile-time  : {}", static_time.as_millis());
+    println!("dynamic-compile-time : {}", dynamic_time.as_millis());
 
     let static_size = fs::metadata(&static_bin_path)?.len();
     let dynamic_size = fs::metadata(&dynamic_bin_path)?.len();
@@ -251,15 +243,14 @@ fn compile_one_case(config: CaseConfig, opts: CompileOpts) -> Result<()> {
 }
 
 fn run_one_case(config: CaseConfig) -> Result<()> {
-    verify_case(&config);
     prereport("running", &config);
 
     let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
     let static_time = run_case(&static_bin_path)?;
     let dynamic_time = run_case(&dynamic_bin_path)?;
 
-    println!("static-run-time : {:?}", static_time);
-    println!("dynamic-run-time: {:?}", dynamic_time);
+    println!("static-run-time : {}", static_time.as_millis());
+    println!("dynamic-run-time: {}", dynamic_time.as_millis());
 
     Ok(())
 }
@@ -270,17 +261,17 @@ fn ranges(config: &MultiCaseConfig) ->
      impl Iterator<Item = u32> + Clone)
 {
     let type_range = if config.step_types > 0 {
-        (1..=config.num_types + 1).step_by(config.step_types as usize)
+        (0..=config.num_types).step_by(config.step_types as usize)
     } else {
         (config.num_types..=config.num_types).step_by(1)
     };
     let fn_range = if config.step_fns > 0 {
-        (1..=config.num_fns + 1).step_by(config.step_fns as usize)
+        (0..=config.num_fns).step_by(config.step_fns as usize)
     } else {
         (config.num_fns..=config.num_fns).step_by(1)
     };
     let call_range = if config.step_calls > 0 {
-        (1..=config.num_calls + 1).step_by(config.step_calls as usize)
+        (0..=config.num_calls).step_by(config.step_calls as usize)
     } else {
         (config.num_calls..=config.num_calls).step_by(1)
     };
@@ -412,6 +403,11 @@ fn gen_case(config: &CaseConfig, path: &Path,
     writeln!(file, "// types = {}, calls = {}",
              config.num_types, config.num_calls)?;
     writeln!(file)?;
+
+    if config.num_types == 0 || config.num_fns == 0 || config.num_calls == 0 {
+        writeln!(file, "#![allow(unused)]")?;
+    }
+
     writeln!(file, "{}", HEADER)?;
 
     let inline_str = if opts.no_inline {
