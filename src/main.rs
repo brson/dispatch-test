@@ -29,13 +29,17 @@ enum Cmd {
         num_types: u32,
         num_fns: u32,
         num_calls: u32,
-        #[structopt(long = "inline")]
+        #[structopt(long)]
         inline: bool,
     },
     CompileOneCase {
         num_types: u32,
         num_fns: u32,
         num_calls: u32,
+        #[structopt(long)]
+        asm: bool,
+        #[structopt(long, default_value = "0")]
+        opt_level: u32,
     },
     RunOneCase {
         num_types: u32,
@@ -59,6 +63,10 @@ enum Cmd {
         step_types: u32,
         step_fns: u32,
         step_calls: u32,
+        #[structopt(long)]
+        asm: bool,
+        #[structopt(long, default_value = "0")]
+        opt_level: u32,
     },
     RunAllCases {
         num_types: u32,
@@ -72,7 +80,7 @@ enum Cmd {
 
 #[derive(Debug, StructOpt)]
 struct GlobalOptions {
-    #[structopt(default_value = "cases", long = "outdir")]
+    #[structopt(default_value = "cases", long)]
     outdir: PathBuf,
 }
 
@@ -88,12 +96,16 @@ fn main() -> Result<()> {
             };
             gen_one_case(config, inline)?;
         }
-        Cmd::CompileOneCase { num_types, num_fns, num_calls } => {
+        Cmd::CompileOneCase { num_types, num_fns, num_calls,
+                              asm, opt_level } => {
             let config = CaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls
             };
-            compile_one_case(config)?;
+            let opts = CompileOpts {
+                asm, opt_level
+            };
+            compile_one_case(config, opts)?;
         }
         Cmd::RunOneCase { num_types, num_fns, num_calls } => {
             let config = CaseConfig {
@@ -113,13 +125,17 @@ fn main() -> Result<()> {
             gen_all_cases(config, inline)?;
         }
         Cmd::CompileAllCases { num_types, num_fns, num_calls,
-                               step_types, step_fns, step_calls, } => {
+                               step_types, step_fns, step_calls,
+                               asm, opt_level } => {
             let config = MultiCaseConfig {
                 outdir: options.global.outdir.clone(),
                 num_types, num_fns, num_calls,
                 step_types, step_fns, step_calls,
             };
-            compile_all_cases(config)?;
+            let opts = CompileOpts {
+                asm, opt_level
+            };
+            compile_all_cases(config, opts)?;
         }
         Cmd::RunAllCases { num_types, num_fns, num_calls,
                            step_types, step_fns, step_calls, } => {
@@ -152,6 +168,12 @@ struct MultiCaseConfig {
     step_calls: u32,
 }
 
+#[derive(Clone)]
+struct CompileOpts {
+    asm: bool,
+    opt_level: u32,
+}
+
 fn verify_case(config: &CaseConfig) {
     assert!(config.num_types > 0);
     assert!(config.num_fns > 0);
@@ -178,24 +200,41 @@ fn gen_one_case(config: CaseConfig, inline: bool) -> Result<()> {
     Ok(())
 }
 
-fn compile_one_case(config: CaseConfig) -> Result<()> {
+fn compile_one_case(config: CaseConfig, opts: CompileOpts) -> Result<()> {
     verify_case(&config);
     prereport("compiling", &config);
 
     let (static_src_path, dynamic_src_path) = gen_src_paths(&config);
     let (static_bin_path, dynamic_bin_path) = gen_bin_paths(&config);
 
-    let static_time = run_rustc(&static_src_path, &static_bin_path)?;
-    let dynamic_time = run_rustc(&dynamic_src_path, &dynamic_bin_path)?;
+    let static_time = run_rustc_bin(&static_src_path, &static_bin_path)?;
+    let dynamic_time = run_rustc_bin(&dynamic_src_path, &dynamic_bin_path)?;
 
-    println!("static-compile-time : {:?}", static_time);
-    println!("dynamic-compile-time: {:?}", dynamic_time);
+    println!("static-compile-time  : {:?}", static_time);
+    println!("dynamic-compile-time : {:?}", dynamic_time);
 
-    let static_size = fs::metadata(static_bin_path)?.len();
-    let dynamic_size = fs::metadata(dynamic_bin_path)?.len();
+    let static_size = fs::metadata(&static_bin_path)?.len();
+    let dynamic_size = fs::metadata(&dynamic_bin_path)?.len();
 
-    println!("static-bin-size     : {}", static_size);
-    println!("dynamic-bin-size    : {}", dynamic_size);
+    println!("static-bin-size      : {}", static_size);
+    println!("dynamic-bin-size     : {}", dynamic_size);
+
+    if opts.asm {
+        let (static_asm_path, dynamic_asm_path) = gen_asm_paths(&config);
+
+        run_rustc_asm(&static_src_path, &static_asm_path)?;
+        run_rustc_asm(&dynamic_src_path, &dynamic_asm_path)?;
+    }
+
+    let (static_method_count, static_fn_count)
+        = count_symbols(&static_bin_path)?;
+    let (dynamic_method_count, dynamic_fn_count)
+        = count_symbols(&dynamic_bin_path)?;
+
+    println!("static-method-count  : {}", static_method_count);
+    println!("static-fn-count      : {}", static_fn_count);
+    println!("dynamic-method-count : {}", dynamic_method_count);
+    println!("dynamic-fn-count     : {}", dynamic_fn_count);
 
     Ok(())
 }
@@ -262,8 +301,8 @@ fn gen_all_cases(config: MultiCaseConfig, inline: bool) -> Result<()> {
     run_all_for(config, |c| gen_one_case(c, inline))
 }
 
-fn compile_all_cases(config: MultiCaseConfig) -> Result<()> {
-    run_all_for(config, &compile_one_case)
+fn compile_all_cases(config: MultiCaseConfig, opts: CompileOpts) -> Result<()> {
+    run_all_for(config, |c| compile_one_case(c, opts.clone()))
 }
 
 fn run_all_cases(config: MultiCaseConfig) -> Result<()> {
@@ -271,28 +310,31 @@ fn run_all_cases(config: MultiCaseConfig) -> Result<()> {
 }
 
 fn gen_src_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
-    let mut static_path = config.outdir.clone();
-    static_path.push(
-        format!("static-{:04}-{:04}-{:04}.rs",
-                config.num_types, config.num_fns, config.num_calls));
-    let mut dynamic_path = config.outdir.clone();
-    dynamic_path.push(
-        format!("dynamic-{:04}-{:04}-{:04}.rs",
-                config.num_types, config.num_fns, config.num_calls));
-    (static_path, dynamic_path)
+    gen_paths(config, "rs")
 }
 
 fn gen_bin_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
+    gen_paths(config, "bin")
+}
+
+fn gen_asm_paths(config: &CaseConfig) -> (PathBuf, PathBuf) {
+    gen_paths(config, "S")
+}
+
+fn gen_paths(config: &CaseConfig, ext: &str) -> (PathBuf, PathBuf) {
     let mut static_path = config.outdir.clone();
     static_path.push(
-        format!("static-{:04}-{:04}-{:04}.bin",
-                config.num_types, config.num_fns, config.num_calls));
+        format!("static-{:04}-{:04}-{:04}.{}",
+                config.num_types, config.num_fns, config.num_calls,
+                ext));
     let mut dynamic_path = config.outdir.clone();
     dynamic_path.push(
-        format!("dynamic-{:04}-{:04}-{:04}.bin",
-                config.num_types, config.num_fns, config.num_calls));
+        format!("dynamic-{:04}-{:04}-{:04}.{}",
+                config.num_types, config.num_fns, config.num_calls,
+                ext));
     (static_path, dynamic_path)
 }
+
 
 static HEADER: &'static str = "
 #![feature(test)]
@@ -427,13 +469,23 @@ fn gen_ctor(num: u32, num_types: u32) -> String {
     buf
 }
 
-fn run_rustc(src: &Path, bin: &Path) -> Result<Duration> {
+fn run_rustc_bin(src: &Path, out: &Path) -> Result<Duration> {
+    run_rustc(src, out, "link")
+}
+
+fn run_rustc_asm(src: &Path, out: &Path) -> Result<Duration> {
+    run_rustc(src, out, "asm")
+}
+
+fn run_rustc(src: &Path, out: &Path, emit: &str) -> Result<Duration> {
     let start = Instant::now();
 
     let status = Command::new("rustc")
         .arg(src)
+        .arg("--emit")
+        .arg(emit)
         .arg("-o")
-        .arg(bin)
+        .arg(out)
         .arg("-Copt-level=3")
         .status()?;
 
@@ -460,3 +512,22 @@ fn run_case(bin: &Path) -> Result<Duration> {
 
     Ok(end - start)
 }
+
+fn count_symbols(bin: &Path) -> Result<(usize, usize)> {
+    let output = Command::new("nm")
+        .arg(bin)
+        .output()?;
+
+    if !output.status.success() {
+        bail!("running nm failed");
+    }
+
+    let out_str = String::from_utf8_lossy(&output.stdout);
+    let lines = out_str.lines();
+    let method_count = lines.clone().filter(|s| s.contains("do_io_m")).count();
+    let fn_count = lines.filter(|s| s.contains("do_io_f")).count();
+
+    Ok((method_count, fn_count))
+}
+
+
